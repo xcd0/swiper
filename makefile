@@ -1,5 +1,5 @@
 
 all:
-	tinygo build -target=pico -o swiper.uf2
+	tinygo build -target=pico -o uf2/swiper.uf2
 flash:
-	tinygo flash -target=pico -o swiper.uf2 main.go
+	tinygo flash -target=pico -o uf2/swiper.uf2 main.go

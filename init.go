@@ -31,15 +31,16 @@ func init() {
 	{
 		pin_out = gpio[0]           // 出力ピン
 		pin_beep_out = gpio[1]      // モニター用サウンド出力ピン
-		pin_dit = gpio[2]           // 短音ピン
-		pin_dash = gpio[3]          // 長音ピン
-		pin_add_speed = gpio[4]     // スピードアップピン
-		pin_sub_speed = gpio[5]     // スピードダウンピン
-		pin_add_frequency = gpio[6] // 周波数アップピン
-		pin_sub_frequency = gpio[7] // 周波数ダウンピン
-		pin_add_debounce = gpio[8]  // デバウンスアップピン
-		pin_sub_debounce = gpio[9]  // デバウンスダウンピン
-		pin_reverse = gpio[10]      // 長短反転ピン
+		pin_straight = gpio[2]      // 単式電鍵用ピン
+		pin_dit = gpio[3]           // 複式電鍵用短音ピン
+		pin_dash = gpio[4]          // 複式電鍵用長音ピン
+		pin_add_speed = gpio[5]     // スピードアップピン
+		pin_sub_speed = gpio[6]     // スピードダウンピン
+		pin_add_frequency = gpio[7] // 周波数アップピン
+		pin_sub_frequency = gpio[8] // 周波数ダウンピン
+		pin_add_debounce = gpio[9]  // デバウンスアップピン
+		pin_sub_debounce = gpio[10] // デバウンスダウンピン
+		pin_reverse = gpio[11]      // 長短反転ピン
 
 		// 出力ピン設定。
 		pin_out.Configure(machine.PinConfig{Mode: machine.PinOutput})

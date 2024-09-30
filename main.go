@@ -13,6 +13,7 @@ var (
 	pin_beep_out      machine.Pin // モニター用サウンド出力ピン
 	pin_dit           machine.Pin // 短音ピン
 	pin_dash          machine.Pin // 長音ピン
+	pin_straight      machine.Pin // ストレートキー用ピン
 	pin_add_speed     machine.Pin // スピードアップピン
 	pin_sub_speed     machine.Pin // スピードダウンピン
 	pin_add_frequency machine.Pin // 周波数アップピン
@@ -63,20 +64,6 @@ func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}) {
 					fmt.Printf(".")
 					Output(s, 1)
 				}
-			} else if ps == PUSH_ADD_SPEED {
-				s.SpeedOffset++
-			} else if ps == PUSH_SUB_SPEED {
-				s.SpeedOffset--
-			} else if ps == PUSH_ADD_FREQUENCY {
-				s.FreqOffset++
-			} else if ps == PUSH_SUB_FREQUENCY {
-				s.FreqOffset--
-			} else if ps == PUSH_ADD_DEBOUNCE {
-				s.DebounceOffset++
-			} else if ps == PUSH_SUB_DEBOUNCE {
-				s.DebounceOffset--
-			} else if ps == PUSH_REVERSE {
-				s.Reverse = !s.Reverse
 			} else {
 				//
 			}
@@ -116,43 +103,111 @@ func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}) {
 
 	for {
 		time.Sleep(time.Millisecond * time.Duration(1))
-		preState := s.Now
-		s.Update()
-		if s.Now == PUSH_NONE {
-			continue
+		if CheckChattering(s) {
+			continue // チャタリング防止の待機時間内にスイッチがOFFになった。
 		}
 
-		// 同時押しは無視する?
-		// 長押しは無視する?
+		// 何れかのピンがONだったのでピンに従って処理する。
 
-		// チャタリング防止のためデバウンス期間待つ。
-		{
-			f := s.Now != preState // ひとつ前の状態がfalseでこのループでtrueになったかを調べる。
-			if !f {
-				continue
-			}
-			//log.Printf("sleep for chattering: %vms", s.debounce)
-			time.Sleep(s.debounce)
-			// 再度チェック。
-			s.Update()
-			f = s.Now != preState && s.Now != PUSH_NONE
-			if !f {
-				continue
-			}
+		// 設定値変更ピンの処理。
+		if ChangeSetting(s) {
+			continue // 設定値変更ピンがONになっていた。設定値を変更したので終わる。
 		}
 
-		// 再度チェックしてtrueだったので出力する。
-		ch <- s.Now
+		// 設定値変更ピンでない場合は信号を出力する。
 
-		// 別スレッドの処理が終わるまで待つ。
-		<-q
+		if s.Now == PUSH_STRAIGHT {
+			// もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
+			fmt.Printf("*")
+			// 押されている間ONにする。
+			pin_out.High()
+			led.High()
+			for {
+				// 押されている間beepを鳴らす。
+				time.Sleep(s.harf)
+				pin_beep_out.High()
+				time.Sleep(s.harf)
+				pin_beep_out.Low()
+				// チェック
+				s.Update()
+				if s.Now != PUSH_STRAIGHT {
+					break
+				}
+			}
+			// OFFになったので終わる。
+			pin_out.Low()
+			led.Low()
+			// 文字ごとの間隔 3tick空ける。
+			time.Sleep(s.tick * time.Duration(3))
+		} else {
+			// ストレートキー用キー以外(長音、単音)は適切に出力する必要がある。
 
-		// 長押しでリピートする機能。
-		if false {
-			// ここに来た場合信号出力が終わっている。
-			// その時点で長押しされている場合複数回リピートしたい。
-			// そのためここでリセットしておく。
-			s.Now = PUSH_NONE
+			ch <- s.Now
+
+			// 別スレッドの処理が終わるまで待つ。
+			<-q
+
+			// 長押しでリピートする機能。
+			if false {
+				// ここに来た場合信号出力が終わっている。
+				// その時点で長押しされている場合複数回リピートしたい。
+				// そのためここでリセットしておく。
+				s.Now = PUSH_NONE
+			}
 		}
 	}
+}
+
+func CheckChattering(s *PushState) bool {
+	preState := s.Now
+	s.Update()
+	if s.Now == PUSH_NONE {
+		return true
+	}
+
+	// 同時押しは無視する?
+	// 長押しは無視する?
+
+	// チャタリング防止のためデバウンス期間待つ。
+	{
+		f := s.Now != preState // ひとつ前の状態がfalseでこのループでtrueになったかを調べる。
+		if !f {
+			return true
+		}
+		//log.Printf("sleep for chattering: %vms", s.debounce)
+		time.Sleep(s.debounce)
+		// 再度チェック。
+		s.Update()
+		f = s.Now != preState && s.Now != PUSH_NONE
+		if !f {
+			return true
+		}
+	}
+	return false // チャタリングしていなかった。
+}
+
+func ChangeSetting(s *PushState) bool {
+	if s.Now == PUSH_ADD_SPEED {
+		s.SpeedOffset++
+		return true
+	} else if s.Now == PUSH_SUB_SPEED {
+		s.SpeedOffset--
+		return true
+	} else if s.Now == PUSH_ADD_FREQUENCY {
+		s.FreqOffset++
+		return true
+	} else if s.Now == PUSH_SUB_FREQUENCY {
+		s.FreqOffset--
+		return true
+	} else if s.Now == PUSH_ADD_DEBOUNCE {
+		s.DebounceOffset++
+		return true
+	} else if s.Now == PUSH_SUB_DEBOUNCE {
+		s.DebounceOffset--
+		return true
+	} else if s.Now == PUSH_REVERSE {
+		s.Reverse = !s.Reverse
+		return true
+	}
+	return false
 }

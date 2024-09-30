@@ -11,13 +11,14 @@ const (
 	PUSH_NONE          ePushState = 0         //   0 何も押されていない
 	PUSH_DIT                      = 1 << iota //   1 短音が押されている
 	PUSH_DASH                                 //   2 長音が押されている
-	PUSH_ADD_SPEED                            //   4 スピードアップが押されている
-	PUSH_SUB_SPEED                            //   8 スピードダウンが押されている
-	PUSH_ADD_FREQUENCY                        //  16 周波数ダウンピンが押されている
-	PUSH_SUB_FREQUENCY                        //  32 周波数ダウンピンが押されている
-	PUSH_ADD_DEBOUNCE                         //  64 デバウンスアップピンが押されている
-	PUSH_SUB_DEBOUNCE                         // 128 デバウンスダウンピンが押されている
-	PUSH_REVERSE                              // 256 パドルの長短切り替えピンが押されている
+	PUSH_STRAIGHT                             //   4 ストレートキー用ピンが押されている。
+	PUSH_ADD_SPEED                            //   8 スピードアップが押されている
+	PUSH_SUB_SPEED                            //  16 スピードダウンが押されている
+	PUSH_ADD_FREQUENCY                        //  32 周波数ダウンピンが押されている
+	PUSH_SUB_FREQUENCY                        //  64 周波数ダウンピンが押されている
+	PUSH_ADD_DEBOUNCE                         // 128 デバウンスアップピンが押されている
+	PUSH_SUB_DEBOUNCE                         // 256 デバウンスダウンピンが押されている
+	PUSH_REVERSE                              // 512 パドルの長短切り替えピンが押されている
 )
 
 type PushState struct {
@@ -42,6 +43,9 @@ func (s *PushState) Update() {
 	}
 	if pin_dash.Get() {
 		s.Now |= PUSH_DASH
+	}
+	if pin_straight.Get() {
+		s.Now |= PUSH_STRAIGHT
 	}
 	if pin_add_speed.Get() {
 		s.Now |= PUSH_ADD_SPEED
