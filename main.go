@@ -21,21 +21,13 @@ var (
 	pin_add_debounce  machine.Pin // デバウンスアップピン
 	pin_sub_debounce  machine.Pin // デバウンスダウンピン
 	pin_reverse       machine.Pin // パドルの長短切り替えピン
+
+	pwm_ch uint8
 )
 
-func main() {
-	if false {
-		// デバッグ用。
-		go func() {
-			for {
-				time.Sleep(time.Millisecond * 100)
-				led.Low()
-				time.Sleep(time.Millisecond * 100)
-				led.High()
-			}
-		}()
-	}
+var _wait bool
 
+func main() {
 	var s PushState
 	ch := make(chan ePushState, 1) // キー入力用channel 先行入力できるほど人間はつよくないので容量1。
 	q := make(chan struct{})       // 処理完了フラグ用channel
@@ -68,8 +60,10 @@ func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}) {
 				//
 			}
 
-			// メインスレッドの待機を終了する。
-			q <- struct{}{}
+			if _wait {
+				// メインスレッドの待機を終了する。
+				q <- struct{}{}
+			}
 		default:
 			//log.Println("OutputSignal: default")
 			time.Sleep(time.Millisecond)
@@ -78,20 +72,35 @@ func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}) {
 	}
 }
 
+func OutputSine(sineFrequency int, term time.Duration) {
+	pwm := machine.PWM0 // GPIO1でPWMする場合PWM0を指定すればよい。
+	pwm.Configure(machine.PWMConfig{Period: uint64(5e2)})
+	var err error
+	if pwm_ch, err = pwm.Channel(pin_beep_out); err != nil {
+		println(err.Error())
+		return
+	}
+	calced := make([]uint32, len(sinTable))
+	for i := 0; i < len(sinTable); i++ {
+		calced[i] = uint32(float32(pwm.Top()) * sinTable[i])
+	}
+	tick := 10
+	steps := len(sinTable) / tick // 正弦波のステップ数
+	stepDuration := time.Second / time.Duration(sineFrequency) / time.Duration(steps)
+
+	end := time.Now().Add(term)
+	for time.Now().Before(end) {
+		for i := 0; i < len(sinTable); i += tick {
+			pwm.Set(pwm_ch, calced[i])
+			time.Sleep(stepDuration)
+		}
+	}
+}
+
 func Output(s *PushState, ticks int) {
 	pin_out.High()
 	led.High()
-	{
-		// t[ms]の間ビープを生成する。
-		end := time.Now().Add(s.tick * time.Duration(ticks)) // 終了時刻を計算
-		//log.Printf("ht: %vus", us)
-		for time.Now().Before(end) {
-			time.Sleep(s.harf)
-			pin_beep_out.High()
-			time.Sleep(s.harf)
-			pin_beep_out.Low()
-		}
-	}
+	OutputSine(s.freq, time.Duration(ticks)*s.tick)
 	pin_out.Low()
 	led.Low()
 	// 文字ごとの間隔 3tick空ける。
@@ -144,8 +153,10 @@ func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}) {
 
 			ch <- s.Now
 
-			// 別スレッドの処理が終わるまで待つ。
-			<-q
+			if _wait {
+				// 別スレッドの処理が終わるまで待つ。
+				//<-q
+			}
 
 			// 長押しでリピートする機能。
 			if false {

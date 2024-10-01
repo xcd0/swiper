@@ -1,3 +1,5 @@
+//go:generate go run generate_sin_table.go
+
 package main
 
 import (
@@ -45,5 +47,6 @@ func init() {
 		// 出力ピン設定。
 		pin_out.Configure(machine.PinConfig{Mode: machine.PinOutput})
 		pin_beep_out.Configure(machine.PinConfig{Mode: machine.PinOutput})
+
 	}
 }

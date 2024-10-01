@@ -69,8 +69,8 @@ func (s *PushState) Update() {
 		s.Now |= PUSH_REVERSE
 	}
 	{ // スピード
-		s.SpeedOffset = Clamp(s.SpeedOffset, -15, 16) // とりあえず5wpmから36wpmまでとする。
-		wpm := (s.SpeedOffset + 20)                   // とりあえず初期値を20wpmとする。wpmから1つの短音の長さを計算する。
+		s.SpeedOffset = Clamp(s.SpeedOffset, -20, 10) // とりあえず5wpmから35wpmまでとする。
+		wpm := (s.SpeedOffset + 25)                   // とりあえず初期値を25wpmとする。wpmから1つの短音の長さを計算する。
 		// 1wpmは1分間にPARIS(50短点)を1回送る速さ。 例えば24wpmの短点は50ms、長点は150msになる。
 		// つまり、n[wpm]は、1分間に(n*50)短点(1秒間にn*50/60短点)の速さなので、1短点は60/50/n*1000[ms]の長さになる。
 		s.tick = time.Duration(1000*60/50/wpm) * time.Millisecond
