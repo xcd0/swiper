@@ -221,7 +221,6 @@ func OutputStraightKey(s *PushState) {
 }
 
 func CheckChattering(s *PushState) bool {
-	preState := s.Now
 	s.Update()
 	if s.Now == PUSH_NONE {
 		return true
@@ -232,20 +231,18 @@ func CheckChattering(s *PushState) bool {
 
 	// チャタリング防止のためデバウンス期間待つ。
 	{
-		f := s.Now != preState // ひとつ前の状態がfalseでこのループでtrueになったかを調べる。
-		if !f {
+		if s.Now == PUSH_NONE {
 			return true
 		}
-		//log.Printf("sleep for chattering: %vms", s.debounce)
+		// デバウンスのために設定期間の間待つ。
 		time.Sleep(s.debounce)
-		// 再度チェック。
-		s.Update()
-		f = s.Now != preState && s.Now != PUSH_NONE
-		if !f {
+		s.Update() // 再度チェック。
+		if s.Now == PUSH_NONE {
 			return true
 		}
 	}
-	return false // チャタリングしていなかった。
+	// チャタリングしていなかった。
+	return false
 }
 
 func ChangeSetting(s *PushState) bool {
