@@ -203,6 +203,7 @@ func OutputSwipeKey(s *PushState, ch chan ePushState, q chan struct{}) {
 
 func OutputStraightKey(s *PushState) {
 	// もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
+	preState := s.Now
 	fmt.Printf("*")
 	// 押されている間ONにする。
 	q := make(chan struct{})
@@ -210,9 +211,10 @@ func OutputStraightKey(s *PushState) {
 	for {
 		// チェック
 		s.Update()
-		if s.Now != PUSH_STRAIGHT {
+		if s.Now != preState {
 			break
 		}
+		time.Sleep(time.Millisecond)
 	}
 	// OFFになったので終わる。
 	q <- struct{}{}
