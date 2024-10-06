@@ -2,9 +2,18 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"machine"
+	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	char_dit      = "." // 短音
+	char_dash     = "-" // 長音
+	char_space    = " " // 文字区切り
+	char_straight = "*" // 任意長さストレートキー
 )
 
 var (
@@ -15,6 +24,7 @@ var (
 	pin_dit           machine.Pin // 短音ピン
 	pin_dash          machine.Pin // 長音ピン
 	pin_straight      machine.Pin // ストレートキー用ピン
+	pin_reset         machine.Pin // 設定リセットピン
 	pin_add_speed     machine.Pin // スピードアップピン
 	pin_sub_speed     machine.Pin // スピードダウンピン
 	pin_add_frequency machine.Pin // 周波数アップピン
@@ -23,7 +33,9 @@ var (
 	pin_sub_debounce  machine.Pin // デバウンスダウンピン
 	pin_reverse       machine.Pin // パドルの長短切り替えピン
 
-	pwm_ch uint8
+	pwm_ch     uint8
+	calced     []uint32 // 正弦波のルックアップテーブルから計算したもの
+	preSetting Setting  // 直前の設定状態。設定をflashに書き込むかどうかの判定に使う。できるだけflashに書き込みたくない。
 
 	_wait bool
 	mutex sync.Mutex
@@ -31,128 +43,83 @@ var (
 
 func main() {
 	var s PushState
+	{
+		//log.Printf("main: load setting")
+		// 設定を読み込み
+		savedSetting, isValid, err := readSettingFromFile(filesystem, setting_filepath)
+		if err != nil {
+			log.Printf("main: %v\n", err)
+		}
+		if !isValid {
+			fmt.Printf("No valid data found. Using default settings.\r\n")
+		}
+		s.setting = savedSetting
+		preSetting = s.setting
+		UpdateSetting(&s) // 読み込んだ設定値からその他の設定値を計算する。
+		//log.Printf("main: loaded setting")
+	}
+
 	ch := make(chan ePushState, 1) // キー入力用channel 先行入力できるほど人間はつよくないので容量1。
 	q := make(chan struct{})       // 処理完了フラグ用channel
+	buf := make([]ePushState, 0, 20)
 	_wait = true
 
-	go OutputSignal(&s, ch, q) // 出力信号作成スレッド    : channelから受け取り、信号を生成して出力する。
-	LoopPinCheck(&s, ch, q)    // キー入力監視(メイン)スレッド: ピン状態を読み取り、channelに投げる。
+	go OutputSignal(&s, ch, q, &buf) // 出力信号作成スレッド    : channelから受け取り、信号を生成して出力する。
+	LoopPinCheck(&s, ch, q, &buf)    // キー入力監視(メイン)スレッド: ピン状態を読み取り、channelに投げる。
 }
 
-func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}) {
-	// chに入ってくるまで何もしない。
-	// 入ってきたらchに合わせて処理する。
-	// 処理が終わったらqを通して終了を通知する。
-	for {
-		select {
-		case ps := <-ch: // ePushStateが入ってくる。
-			if ps == PUSH_DIT {
-				if !s.Reverse {
-					fmt.Printf(".")
-					OutputSineWhileTick(s, 1)
-				} else {
-					fmt.Printf("-")
-					OutputSineWhileTick(s, 3)
-				}
-			} else if ps == PUSH_DASH {
-				if !s.Reverse {
-					fmt.Printf("-")
-					OutputSineWhileTick(s, 3)
-				} else {
-					fmt.Printf(".")
-					OutputSineWhileTick(s, 1)
-				}
-			} else {
-				//
-			}
-			if _wait {
-				// メインスレッドの待機を終了する。
-				q <- struct{}{}
-			}
-		default:
-			time.Sleep(time.Millisecond) // 1ms間隔でチェックする。
-		}
-	}
-}
-
-// goroutineとして呼び出すこと。
-func OutputSine(sineFrequency int, q chan struct{}) {
-	// log.Printf("OutputSine: start")
-	// defer log.Printf("OutputSine: start")
-	mutex.Lock()
-	defer mutex.Unlock()
-	pin_out.High()
-	led.High()
-	defer pin_out.Low()
-	defer led.Low()
-	// qに入ってくるまで正弦波を出力する。
-	{
-		pwm := machine.PWM0 // GPIO1でPWMする場合PWM0を指定すればよい。
-		pwm.Configure(machine.PWMConfig{Period: uint64(5e2)})
-		var err error
-		if pwm_ch, err = pwm.Channel(pin_beep_out); err != nil {
-			println(err.Error())
-			return
-		}
-		calced := make([]uint32, len(sinTable))
-		for i := 0; i < len(sinTable); i++ {
-			calced[i] = uint32(float32(pwm.Top()) * sinTable[i])
-		}
-		tick := 10
-		steps := len(sinTable) / tick // 正弦波のステップ数
-		stepDuration := time.Second / time.Duration(sineFrequency) / time.Duration(steps)
-
-		for {
-			select {
-			case _ = <-q:
-				// log.Printf("OutputSine: recieved q")
-				// qに入って来たので終了する。
-				return
-			default:
-				// 1周期分正弦波を出力する。
-				for i := 0; i < len(sinTable); i += tick {
-					pwm.Set(pwm_ch, calced[i])
-					time.Sleep(stepDuration)
-				}
-			}
-		}
-	}
-}
-
-func OutputSineWhileTick(s *PushState, ticks int) {
-	// log.Printf("OutputSineWhileTick: start")
-	// defer log.Printf("OutputSineWhileTick: end")
-	q := make(chan struct{})
-	// log.Printf("OutputSineWhileTick: go OutputSine")
-	go OutputSine(s.freq, q) // 正弦波を出力開始。
-
-	// 指定tick数の期間待つ。
-	// log.Printf("OutputSineWhileTick: wait %v ticks", ticks)
-	end := time.Now().Add(time.Duration(ticks) * s.tick)
-	for time.Now().Before(end) {
-		time.Sleep(time.Millisecond * time.Duration(1)) // 1msごとにチェック
-	}
-
-	// log.Printf("OutputSineWhileTick: output end")
-	q <- struct{}{}                       // 正弦波出力を終了する。
-	time.Sleep(s.tick * time.Duration(1)) // 文字ごとの間隔 1tick空ける。
-
-	// 単語の間は4tick空ける必要があるが、このプログラムでは単語の判断は無理なのでユーザーが頑張るものとする。
-}
-
-func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}) {
+func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePushState) {
 
 	// 4tickの間何も押されていなければ空白1つだけを送出する。
 	none := true
 	end := time.Now().Add(time.Duration(4) * s.tick)
+	// 5秒間の間何も押されていなければ罫線と現状の設定を送出する。
+	end2 := time.Now().Add(time.Duration(5) * time.Second)
+	none2 := true
+
+	// ターミナル表示用バッファ。何が押されたかをためておく。
 
 	for {
 		// 1msごとにチェック。
 		time.Sleep(time.Millisecond * time.Duration(1))
 		if none && time.Now().After(end) {
-			// 4tickの間何も押されていなければ空白1つだけを送出する。リピートはしない。
-			fmt.Printf(" ")
-			none = false
+			if true {
+				// バッファにある長短を解析して文字に変換する。
+				char := ReadBuf(buf)
+				fmt.Printf("\t%v\r\n", char)
+				none = false
+			} else {
+				// 4tickの間何も押されていなければ空白1つだけを送出する。リピートはしない。
+				fmt.Printf(char_space)
+				none = false
+			}
+		}
+		if none2 && time.Now().After(end2) {
+			str := fmt.Sprintf(
+				`
+----------------------------------------
+Reverse        : %v	: 長音キーと短音キーを反転させるか
+SpeedOffset    : %v	: (so) 速度設定値       変更可能 -20から+10まで
+FreqOffset     : %v	: (fo) 周波数設定値     変更可能 -8から+8まで
+DebounceOffset : %v	: (do) デバウンス設定値 変更可能 -2から+18まで
+WPM            : %v	: WPM                      25+so [wpm]
+Tick           : %v	: 短音の長さ               60/50/wpm*1000 [ms]
+Freq           : %vHz	: 正弦波の周波数の目安 800+50*fo [Hz]
+Debounce       : %v	: チャタリング防止時間     20+10*do [ns]
+----------------------------------------
+`,
+				s.setting.Reverse,
+				s.setting.SpeedOffset,
+				s.setting.FreqOffset,
+				s.setting.DebounceOffset,
+				s.setting.SpeedOffset+25,
+				s.tick,
+				s.freq,
+				s.debounce,
+			)
+			str = strings.ReplaceAll(str, "\n", "\r\n")
+			fmt.Printf("%v", str)
+			none2 = false
 		}
 
 		// チャタリングを防止しつつキー入力があるまで待機する。
@@ -166,58 +133,31 @@ func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}) {
 		// 設定値変更ピンでない場合は信号を出力する。
 		if ChangeSetting(s) {
 			// 設定値変更ピンがONになっていた。設定値を変更したので終わる。
-		} else if s.Now == PUSH_STRAIGHT {
-			OutputStraightKey(s) // もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
+			// この時点では設定値を保存しない。
+			// なので設定値変更ピンで変更された直後電源がOFFになった場合変更は保存されない。
 		} else {
-			// ストレートキー用キー以外(長音、単音)は適切に出力する必要がある。
-			OutputSwipeKey(s, ch, q)
+
+			if preSetting != s.setting {
+				// 設定値が変更されていた。できるだけflashに書き込まないために、変更されるたびには保存していない。
+				// 設定値が変更されている状態で、設定値変更ピン以外のピン(長短ピン、ストレートキーなど)が押されたタイミングで保存する。
+				if err := writeSettingToFile(filesystem, s.setting, setting_filepath); err != nil { // 変更された設定をflashメモリに保存
+					handleError(fmt.Errorf("main: %v", err))
+				}
+				preSetting = s.setting
+			}
+
+			if s.Now == PUSH_STRAIGHT {
+				OutputStraightKey(s) // もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
+			} else {
+				// ストレートキー用キー以外(長音、単音)は適切に出力する必要がある。
+				OutputSwipeKey(s, ch, q)
+			}
 		}
 		end = time.Now().Add(time.Duration(4) * s.tick)
+		end2 = time.Now().Add(time.Duration(5) * time.Second)
 		none = true
+		none2 = true
 	}
-}
-
-func OutputSwipeKey(s *PushState, ch chan ePushState, q chan struct{}) {
-	// log.Printf("OutputSwipeKey: start")
-	//defer log.Printf("OutputSwipeKey: end")
-	n := s.Now
-	for {
-		// 別スレッドで信号処理。
-		// 具体的にはmainから呼ばれているOutputSignalで処理される。
-		ch <- s.Now
-		if _wait {
-			// 別スレッドの処理が終わるまで待つ。
-			// log.Printf("OutputSwipeKey: waiting")
-			<-q
-			// log.Printf("OutputSwipeKey: recieved q")
-			//log.Printf("OutputSwipeKey: wait end")
-		}
-		// 長押しでリピートする。
-		// 出力が終わった時点で再度チェックしてまだ押されていたら再度出力する。
-		// ピン状態が変わっていたら終了する。
-		if s.Update(); n != s.Now {
-			break
-		}
-	}
-}
-
-func OutputStraightKey(s *PushState) {
-	// もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
-	preState := s.Now
-	fmt.Printf("*")
-	// 押されている間ONにする。
-	q := make(chan struct{})
-	go OutputSine(s.freq, q)
-	for {
-		// チェック
-		s.Update()
-		if s.Now != preState {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	// OFFになったので終わる。
-	q <- struct{}{}
 }
 
 func CheckChattering(s *PushState) bool {
@@ -246,27 +186,59 @@ func CheckChattering(s *PushState) bool {
 }
 
 func ChangeSetting(s *PushState) bool {
-	if s.Now == PUSH_ADD_SPEED {
-		s.SpeedOffset++
-		return true
+	preSetting = s.setting
+	ret := false
+	if s.Now == PUSH_RESET {
+		// 設定初期化。
+		s.setting.SpeedOffset = 0
+		s.setting.FreqOffset = 0
+		s.setting.DebounceOffset = 0
+		s.setting.Reverse = false
+		ret = true
+	} else if s.Now == PUSH_ADD_SPEED {
+		s.setting.SpeedOffset++
+		ret = true
 	} else if s.Now == PUSH_SUB_SPEED {
-		s.SpeedOffset--
-		return true
+		s.setting.SpeedOffset--
+		ret = true
 	} else if s.Now == PUSH_ADD_FREQUENCY {
-		s.FreqOffset++
-		return true
+		s.setting.FreqOffset++
+		ret = true
 	} else if s.Now == PUSH_SUB_FREQUENCY {
-		s.FreqOffset--
-		return true
+		s.setting.FreqOffset--
+		ret = true
 	} else if s.Now == PUSH_ADD_DEBOUNCE {
-		s.DebounceOffset++
-		return true
+		s.setting.DebounceOffset++
+		ret = true
 	} else if s.Now == PUSH_SUB_DEBOUNCE {
-		s.DebounceOffset--
-		return true
+		s.setting.DebounceOffset--
+		ret = true
 	} else if s.Now == PUSH_REVERSE {
-		s.Reverse = !s.Reverse
-		return true
+		s.setting.Reverse = !s.setting.Reverse
+		ret = true
 	}
-	return false
+
+	if ret {
+		UpdateSetting(s)
+	}
+	return ret
+}
+
+func UpdateSetting(s *PushState) {
+	// 設定値からその他の設定値を計算する。
+	{ // スピード
+		s.setting.SpeedOffset = Clamp(s.setting.SpeedOffset, -20, 10) // とりあえず5wpmから35wpmまでとする。
+		wpm := (s.setting.SpeedOffset + 25)                           // とりあえず初期値を25wpmとする。wpmから1つの短音の長さを計算する。
+		// 1wpmは1分間にPARIS(50短点)を1回送る速さ。 例えば24wpmの短点は50ms、長点は150msになる。
+		// つまり、n[wpm]は、1分間に(n*50)短点(1秒間にn*50/60短点)の速さなので、1短点は60/50/n*1000[ms]の長さになる。
+		s.tick = time.Duration(1000*60/50/wpm) * time.Millisecond
+	}
+	{ // 音程
+		s.setting.FreqOffset = Clamp(s.setting.FreqOffset, -8, 8) // とりあえず、800を基準に、400から1200までを狙って50Hz刻みとする。
+		s.freq = (s.setting.FreqOffset*50 + 800)                  // とりあえず、初期値を800Hzとする。
+	}
+	{ // デバウンス
+		s.setting.DebounceOffset = Clamp(s.setting.DebounceOffset, -2, 18) // 20msを基準に0msから200msまでを狙って10ms刻みとする。
+		s.debounce = time.Duration(s.setting.DebounceOffset*10 + 20)
+	}
 }
