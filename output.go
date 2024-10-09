@@ -67,7 +67,11 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 	defer led.Low()
 	// qに入ってくるまで正弦波を出力する。
 	{
-		pwm := machine.PWM0 // GPIO1でPWMする場合PWM0を指定すればよい。
+		// PWMの設定。
+		// どのピンがどのPWMなのかは下記が見やすい。
+		// https://tinygo.org/docs/reference/microcontrollers/pico/#:~:text=YES-,Pins,-Pin
+		// GPIO1でPWMする場合PWM0を指定すればよい。
+		pwm := machine.PWM0
 		pwm.Configure(machine.PWMConfig{Period: uint64(5e2)})
 		var err error
 		if pwm_ch, err = pwm.Channel(pin_beep_out); err != nil {
