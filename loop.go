@@ -1,8 +1,8 @@
+package main
 
 import "fmt"
 
 func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePushState) {
-
 	// 4tickの間何も押されていなければ空白1つだけを送出する。
 	none := true
 	end := time.Now().Add(time.Duration(4) * s.tick)
@@ -15,7 +15,7 @@ func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePus
 	for {
 		// 1msごとにチェック。
 		time.Sleep(time.Millisecond * time.Duration(1))
-		PrintCharactor(&none, &end)
+		PrintCharactor(&none, &end, buf)
 		PrintSetting(&none2, &end2)
 
 		// チャタリングを防止しつつキー入力があるまで待機する。
@@ -53,6 +53,21 @@ func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePus
 		end2 = time.Now().Add(time.Duration(5) * time.Second)
 		none = true
 		none2 = true
+	}
+}
+
+func PrintCharactor(none *bool, end *time.Time, buf *[]ePushState) {
+	if *none && time.Now().After(*end) {
+		if true {
+			// バッファにある長短を解析して文字に変換する。
+			char := ReadBuf(buf)
+			fmt.Printf("\t%v\r\n", char)
+			*none = false
+		} else {
+			// 4tickの間何も押されていなければ空白1つだけを送出する。リピートはしない。
+			fmt.Printf(char_space)
+			*none = false
+		}
 	}
 }
 

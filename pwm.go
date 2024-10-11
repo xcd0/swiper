@@ -1,19 +1,11 @@
 package main
 
-import "machine"
+import (
+	"fmt"
+	"machine"
+)
 
-// PWMの設定。
-func init_pwm(pin int) {
-	var pwm_frequency uint64 = 5e2
-	pwm, ch, err := GetPWM(pin, pwm_frequency)
-	pwm_for_monitor = pwm
-
-	calced = make([]uint32, len(sinTable))
-	for i := 0; i < len(sinTable); i++ {
-		calced[i] = uint32(float32(pwm.Top()) * sinTable[i])
-	}
-}
-
+// machineのPWMは非公開なので。
 type PWM interface {
 	Set(channel uint8, value uint32)
 	SetPeriod(period uint64) error
@@ -21,6 +13,22 @@ type PWM interface {
 	Top() uint32
 	Configure(config machine.PWMConfig) error
 	Channel(machine.Pin) (uint8, error)
+}
+
+// PWMの設定。
+func init_pwm(pin int) {
+	var pwm_frequency uint64 = 5e2
+
+	var err error
+	pwm_for_monitor, pwm_ch, err = GetPWM(pin, pwm_frequency)
+	if err != nil {
+		handleError(fmt.Errorf("init_pwm: %v", err))
+		return
+	}
+	calced = make([]uint32, len(sinTable))
+	for i := 0; i < len(sinTable); i++ {
+		calced[i] = uint32(float32(pwm_for_monitor.Top()) * sinTable[i])
+	}
 }
 
 func GetPWM(pin int, frequency uint64) (PWM, uint8, error) {

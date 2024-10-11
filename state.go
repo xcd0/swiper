@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+type PinState uint32
+
 type PushState struct {
 	Now PinState // 現在のGPIOの状態
 
@@ -18,12 +20,10 @@ type PushState struct {
 	recorded_input []string
 }
 
-type PinState uint32
-
 func ReadGPIO() PinState {
-	var state uint32 = 0
+	var state PinState = 0
 	for i, p := range gpio {
-		if i < 23 && 25 < i || i == PinSetting.Output || i == PinSetting.AnalogChangeSpeed || i == PinSetting.AnalogChangeFrequency {
+		if i < 23 && 25 < i || i == s.setting.PinSetting.Output || i == s.setting.PinSetting.AnalogChangeSpeed || i == s.setting.PinSetting.AnalogChangeFrequency {
 			// 入力ピン以外は無視する。
 		} else {
 			if p.Get() {

@@ -1,111 +1,157 @@
 package main
 
-import (
-	"errors"
+import "strings"
+
+// モールス信号の種類
+type WordType int
+
+const (
+	TypeMorse WordType = iota
+	TypeChangeSetting
+	TypeOther
 )
 
-var (
+// モールスモードの定義
+type MorseMode int
 
-	// モールス信号と英数字記号の対応表
-	// .が0、-が1としている。
-	morseCodeMap = map[string]string{
-		"01":      "A",
-		"1000":    "B",
-		"1010":    "C",
-		"100":     "D",
-		"0":       "E",
-		"0010":    "F",
-		"110":     "G",
-		"0000":    "H",
-		"00":      "I",
-		"0111":    "J",
-		"101":     "K",
-		"0100":    "L",
-		"11":      "M",
-		"10":      "N",
-		"111":     "O",
-		"0110":    "P",
-		"1101":    "Q",
-		"010":     "R",
-		"000":     "S",
-		"1":       "T",
-		"001":     "U",
-		"0001":    "V",
-		"011":     "W",
-		"1001":    "X",
-		"1011":    "Y",
-		"1100":    "Z",
-		"11111":   "0",
-		"01111":   "1",
-		"00111":   "2",
-		"00011":   "3",
-		"00001":   "4",
-		"00000":   "5",
-		"10000":   "6",
-		"11000":   "7",
-		"11100":   "8",
-		"11110":   "9",
-		"010101":  ".",
-		"110011":  ",",
-		"001100":  "?",
-		"101011":  "!",
-		"10110":   "(",
-		"101101":  ")",
-		"011110":  "'",
-		"100001":  "-",
-		"10010":   "/",
-		"010010":  "\"",
-		"011010":  "@",
-		"0001001": "$",
-		"01000":   "&",
-
-		"dit":      "dit",      // 来ない。
-		"dash":     "dash",     // 来ない。
-		"straight": "straight", // 来ない。
-		"*":        "straight", // ストレートキーは長いのでこれにしている。
-		"reset":    "reset",
-		"sp_up":    "speed up",
-		"sp_dn":    "speed down",
-		"fq_up":    "frequency up",
-		"fq_dn":    "frequency down",
-		"de_up":    "debounce up",
-		"de_dn":    "debounce down",
-		"reverse":  "reverse",
-	}
+const (
+	ModeReadMorse   MorseMode = iota // 英文モールス
+	ModeReadJPMorse                  // 和文モールス
 )
 
-func ReadBuf(buf *[]ePushState) string {
-	// 短音を0,長音を1として文字列にする。
-	morseCode := ""
-	for _, b := range *buf {
-		if b == PUSH_DIT {
-			morseCode += "0"
-		} else if b == PUSH_DASH {
-			morseCode += "1"
-		} else if b == PUSH_STRAIGHT {
-			// ストレートキー。
-			morseCode += "*"
-		} else {
-			// 設定変更ピンなど。
-			morseCode += b.String()
-		}
-	}
-	char, err := MorseToChar(morseCode)
-	if err != nil {
-		//fmt.Printf("Error: %v\n", err)
-		char = "error"
-	}
-	*buf = (*buf)[:0] // ターミナル表示用バッファをクリア。capacityは維持。
-	//log.Printf("buf: %#v,\tmorseCode: %#v,\tchar: %#v", *buf, morseCode, char)
-	return char
+type MorseMap map[MorseMode]string
+
+// モールス信号デコード情報
+type WordInfo struct {
+	Type   WordType
+	String MorseMap
 }
 
-// MorseToChar はモールス信号を英数字または記号に変換する関数
-func MorseToChar(morseCode string) (string, error) {
-	// 対応するモールス信号が存在するか確認
-	if char, ok := morseCodeMap[morseCode]; ok {
-		return char, nil
+// デコード用のマップ
+type DecodeMap map[string]WordInfo
+
+// デコードマップの定義（英文モールスと和文モールス）
+var decode_map = DecodeMap{
+
+	".-":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "A", ModeReadJPMorse: "イ"}},
+	"-...": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "B", ModeReadJPMorse: "ハ"}},
+	"-.-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "C", ModeReadJPMorse: "ニ"}},
+	"-..":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "D", ModeReadJPMorse: "ホ"}},
+	".":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "E", ModeReadJPMorse: "ヘ"}},
+	"..-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "F", ModeReadJPMorse: "チ"}},
+	"--.":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "G", ModeReadJPMorse: "リ"}},
+	"....": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "H", ModeReadJPMorse: "ヌ"}},
+	"..":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "I", ModeReadJPMorse: "゛"}},
+	".---": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "J", ModeReadJPMorse: "ヲ"}},
+	"-.-":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "K", ModeReadJPMorse: "ワ"}}, // 送信要求の意味でも使われる。
+	".-..": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "L", ModeReadJPMorse: "カ"}},
+	"--":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "M", ModeReadJPMorse: "ヨ"}},
+	"-.":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "N", ModeReadJPMorse: "タ"}},
+	"---":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "O", ModeReadJPMorse: "レ"}},
+	".--.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "P", ModeReadJPMorse: "ツ"}},
+	"--.-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "Q", ModeReadJPMorse: "ネ"}},
+	".-.":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "R", ModeReadJPMorse: "ナ"}},
+	"...":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "S", ModeReadJPMorse: "ラ"}},
+	"-":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "T", ModeReadJPMorse: "ム"}},
+	"..-":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "U", ModeReadJPMorse: "ウ"}},
+	"...-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "V", ModeReadJPMorse: "ク"}},
+	".--":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "W", ModeReadJPMorse: "ヤ"}},
+	"-..-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "X", ModeReadJPMorse: "マ"}}, // 乗算の意味でも使われる。
+	"-.--": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "Y", ModeReadJPMorse: "ケ"}},
+	"--..": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "Z", ModeReadJPMorse: "フ"}},
+
+	// 数字
+	"-----": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "0"}},
+	".----": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "1"}},
+	"..---": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "2"}},
+	"...--": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "3"}},
+	"....-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "4"}},
+	".....": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "5"}},
+	"-....": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "6"}},
+	"--...": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "7"}},
+	"---..": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "8"}},
+	"----.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "9"}},
+
+	// 記号
+	".-.-.-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: ".", ModeReadJPMorse: "、"}},  // ピリオド
+	"--..--": {Type: TypeMorse, String: MorseMap{ModeReadMorse: ","}},                        // カンマ
+	"..--..": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "?"}},                        // クエスチョンマーク
+	".----.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "'"}},                        // アポストロフィ
+	"-.-.--": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "!"}},                        // 感嘆符
+	"-..-.":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "/", ModeReadJPMorse: "モ"}},  // スラッシュ
+	"-.--.":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "(", ModeReadJPMorse: "ル"}},  // 開き括弧
+	"-.--.-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: ")", ModeReadJPMorse: "（"}},  // 閉じ括弧 // 和文モールス中にアルファベットを含めるときは前後を（）で括る。
+	".-...":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "&", ModeReadJPMorse: "オ"}},  // アンパサンド 待機要求の意味でも使われる。
+	"---...": {Type: TypeMorse, String: MorseMap{ModeReadMorse: ":"}},                        // コロン
+	"-.-.-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: ";"}},                        // セミコロン
+	"-...-":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "=", ModeReadJPMorse: "メ"}},  // イコール 送信開始の意味でも使われる。
+	".-.-.":  {Type: TypeMorse, String: MorseMap{ModeReadMorse: "+", ModeReadJPMorse: "ン"}},  // プラス 送信終了の意味でも使われる。
+	"-....-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "-"}},                        // マイナス
+	"..--.-": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "_"}},                        // アンダースコア
+	".-..-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "\"", ModeReadJPMorse: "）"}}, // ダブルクオート
+	".--.-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "@"}},                        // アットマーク
+
+	"-..-":     {Type: TypeMorse, String: MorseMap{ModeReadMorse: "×"}},                              // 乗算
+	"......":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "^"}},                              // べき乗"^"
+	"-..-.":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "/"}},                              // 斜線"/"
+	"........": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "訂正"}},                             // 訂正 ※「HH」と表現される
+	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信開始"}},                           // 送信開始 ※「BT」と表現される	-...-（=と同じ）
+	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信終了"}},                           // 送信終了 ※「AR」と表現される	.-.-.（+と同じ）
+	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "通信終了"}},                           // 通信の終了 ※「VA」と表現される
+	"...-.-":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信要求"}},                           // 送信要求	-.-（Kと同じ）
+	".-...":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "待機待機"}},                           // 待機要求 ※「AS」と表現される
+	"...-.":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "了解", ModeReadJPMorse: "[訂正・終了]"}}, // ラタ
+
+	// 和文残り
+	".-.-":   {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ロ"}},
+	"..-..":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ト"}},
+	"---.":   {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ソ"}},
+	".-..-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ヰ"}},
+	"..--":   {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ノ"}},
+	"----":   {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "コ"}},
+	"-.---":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "エ"}},
+	".-.--":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "テ"}},
+	"--.--":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ア"}},
+	"-.-.-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "サ"}},
+	"-.-..":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "キ"}},
+	"-..--":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ユ"}},
+	"..-.-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ミ"}},
+	"--.-.":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "シ"}},
+	".--..":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ヱ"}},
+	"--..-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ヒ"}},
+	".---.":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "セ"}},
+	"---.-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ス"}},
+	"..--.":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "゜"}},
+	".--.-":  {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "ー"}},
+	".-.-..": {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "」"}},
+	"-..---": {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "[本文]"}}, // ホレ
+}
+
+func DecodeMorse(rb *RingBuffer, mode MorseMode) string {
+	if rb.Count() == 0 {
+		return ""
 	}
-	// マッピングが存在しない場合はエラーを返す
-	return "", errors.New("invalid morse code")
+	var morseCode strings.Builder
+	rb.Do(func(input InputType) {
+		switch input {
+		case Push_InputDit:
+			morseCode.WriteString(".")
+		case Push_InputDash:
+			morseCode.WriteString("-")
+		}
+	})
+	code := morseCode.String()
+	if info, ok := decode_map[code]; ok {
+		if info.Type == TypeMorse {
+			if str, ok := info.String[mode]; ok {
+				return str
+			}
+			// モードに対応する文字がない場合、別のモードの文字を使用
+			for _, v := range info.String {
+				return v
+			}
+		}
+	}
+
+	return "*" // 該当なし
 }

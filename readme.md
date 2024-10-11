@@ -119,7 +119,24 @@ https://github.com/k3ng/k3ng_cw_keyer/wiki
 ### 正弦波出力
 
 モニター用に正弦波を出している。
-と言っても、PWM変調を利用しt出力でしかないので、外部にLPFを必要とする。
+と言っても、PWM変調を利用した出力でしかないので、外部にLPFを必要とする。  
+LPFがなくても単純な[圧電サウンダ](https://akizukidenshi.com/catalog/g/g101251/)では単純につなげばそれっぽく音が鳴る。  
+勿論音は良くない。  
+
+例えば、[ブレッドボード用ダイナミックスピーカー](https://akizukidenshi.com/catalog/g/g112587/) を使用して、  
+1mの距離で40dB程度で鳴らしたい場合、ChatGPTによると28mV程度でよい模様。合っているかどうか不明。  
+LPFの出力が3V程度だとするとそのまま使用すると音が大きすぎると思われる。
+なので可変抵抗を使用して調節できるようにするとそう。  
+[スイッチ付 小型ボリューム 10kΩB](https://akizukidenshi.com/catalog/g/g117281/) を使う場合、100kΩ程度の抵抗R1を使って分圧すれば良さそう。  
+![](./img/bad_speaker_voltage_divider.png)  
+しかしよく考えるとこれだとスピーカーに直流電流が流れてしまうのでよくなさそう。  
+
+https://github.com/martinkooij/pi-pico-tone に
+
+> ![](./img/tone-line-output.png)  
+
+のように、LPFは16kHz、HPFが2Hzくらいで良さげな回路があった。  
+このスピーカーを動かすだけなら出力部分のインピーダンスマッチング用抵抗は不要と思われる。  
 
 ### 設定保存
 

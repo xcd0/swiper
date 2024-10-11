@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"machine"
 	"sync"
 	"time"
@@ -32,22 +31,8 @@ func main() {
 	buf := make([]ePushState, 0, 20)
 	// メインの処理。
 	{
+		go debug()
 		go OutputSignal(&s, ch, q, &buf) // 出力信号作成スレッド    : channelから受け取り、信号を生成して出力する。
 		LoopPinCheck(&s, ch, q, &buf)    // キー入力監視(メイン)スレッド: ピン状態を読み取り、channelに投げる。
-	}
-}
-
-func PrintCharactor(none *bool, end *time.Time) {
-	if *none && time.Now().After(*end) {
-		if true {
-			// バッファにある長短を解析して文字に変換する。
-			char := ReadBuf(buf)
-			fmt.Printf("\t%v\r\n", char)
-			*none = false
-		} else {
-			// 4tickの間何も押されていなければ空白1つだけを送出する。リピートはしない。
-			fmt.Printf(char_space)
-			*none = false
-		}
 	}
 }

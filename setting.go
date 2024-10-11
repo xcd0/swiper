@@ -7,7 +7,7 @@ import (
 )
 
 func UpdateSetting() {
-	s.Now := ReadGPIO()
+	s.Now = ReadGPIO()
 }
 
 // 外部から変更可能な設定値。変更時にflashに保存する。起動時に読み込みを試みる。
@@ -48,13 +48,13 @@ DaR: %v	|              | I2C SDA: %2d | fn6 : %2d
 ASp: %v	| reset  : %2d | I2C SCL: %2d |          
 ----------------------------------------------
 `,
-			s.setting.Reverse, s.PinSetting.InputDit, s.PinSetting.Output, s.PinSetting.Fn1,
-			s.setting.Speed, s.PinSetting.InputDash, s.PinSetting.OutputSine, s.PinSetting.Fn2,
-			s.tick, s.PinSetting.InputAny, s.PinSetting.AnalogChangeSpeed, s.PinSetting.Fn3,
-			s.setting.Frequency, s.PinSetting.DecodeCW, s.PinSetting.AnalogChangeFrequency, s.PinSetting.Fn4,
-			s.setting.Debounce, s.PinSetting.Reverse, s.PinSetting.Fn5,
-			s.setting.DisableSqueeze, s.PinSetting.I2CSDA, s.PinSetting.Fn6,
-			s.setting.DisableAutoSpace, s.PinSetting.Reset, s.PinSetting.I2CSCL,
+			s.setting.Reverse, s.setting.PinSetting.InputDit, s.setting.PinSetting.Output, s.setting.PinSetting.Fn1,
+			s.setting.Speed, s.setting.PinSetting.InputDash, s.setting.PinSetting.OutputSine, s.setting.PinSetting.Fn2,
+			s.tick, s.setting.PinSetting.InputAny, s.setting.PinSetting.AnalogChangeSpeed, s.setting.PinSetting.Fn3,
+			s.setting.Frequency, s.setting.PinSetting.DecodeCW, s.setting.PinSetting.AnalogChangeFrequency, s.setting.PinSetting.Fn4,
+			s.setting.Debounce, s.setting.PinSetting.Reverse, s.setting.PinSetting.Fn5,
+			s.setting.DisableSqueeze, s.setting.PinSetting.I2CSDA, s.setting.PinSetting.Fn6,
+			s.setting.DisableAutoSpace, s.setting.PinSetting.Reset, s.setting.PinSetting.I2CSCL,
 		)
 		str = strings.ReplaceAll(str, "\n", "\r\n")
 		fmt.Printf("%v", str)
@@ -64,7 +64,6 @@ ASp: %v	| reset  : %2d | I2C SCL: %2d |
 
 func NewSetting() Setting {
 	return Setting{
-		ID:                  magicNumber,    // これは データの有効性を判定するためのマジックナンバー。flashメモリ上にあるデータが正しく初期化されているかの判定に使う。
 		PinSetting:          NewPinAssign(), // GPIOのピン設定。
 		Reverse:             false,          // 長短のパドル反転。初期値false。
 		Speed:               20,             // 速度。初期値20WPM。
@@ -86,6 +85,9 @@ type PinAssign struct {
 	DecodeCW  int `json:"decode-cw"`  // デコード用CW入力ピン。外部からのCWをでコードしてUSB Serialに文字として出力する。
 	Reverse   int `json:"reverse"`    // 長短音ピン反転ピン。
 	Reset     int `json:"reset"`      // 設定リセットピン。
+
+	I2CSDA int `json:"i2c-sda"` // I2C SDA LCDやDACなど外部にI2Cの機器を接続する際に使用する。
+	I2CSCL int `json:"i2c-scl"` // I2C SCL LCDやDACなど外部にI2Cの機器を接続する際に使用する。
 
 	Fn1 int `json:"macro-1"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録1を指定する。 / (1秒以上) 設定値変更:スピード変更状態にする。
 	Fn2 int `json:"macro-2"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録2を指定する。 / (1秒以上) 設定値変更:正弦波周波数変更状態にする。
@@ -120,8 +122,8 @@ func NewPinAssign() PinAssign {
 		Reverse:   4, // 長短音ピン反転ピン。
 		Reset:     5, // 設定リセットピン。
 
-		SDA: 6, // I2C0
-		SCL: 7, // I2C0
+		I2CSDA: 6, // I2C0
+		I2CSCL: 7, // I2C0
 
 		// 8,9
 
