@@ -6,13 +6,13 @@ import (
 	"time"
 )
 
-func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePushState) {
+func OutputSignal(sig_ch chan ePushState, quit_ch chan struct{}) {
 	// chに入ってくるまで何もしない。
 	// 入ってきたらchに合わせて処理する。
 	// 処理が終わったらqを通して終了を通知する。
 	for {
 		select {
-		case ps := <-ch: // ePushStateが入ってくる。
+		case ps := <-sig_ch: // ePushStateが入ってくる。
 			//log.Printf("OutputSignal: %v", ps)
 			if ps == PUSH_DIT {
 				// 短音
@@ -45,7 +45,7 @@ func OutputSignal(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePus
 			}
 			if _wait {
 				// メインスレッドの待機を終了する。
-				q <- struct{}{}
+				quit_ch <- struct{}{}
 			}
 		default:
 			time.Sleep(time.Millisecond) // 1ms間隔でチェックする。

@@ -2,7 +2,7 @@ package main
 
 import "fmt"
 
-func LoopPinCheck(s *PushState, ch chan ePushState, q chan struct{}, buf *[]ePushState) {
+func LoopPinCheck(ch chan ePushState, q chan struct{}) {
 	// 4tickの間何も押されていなければ空白1つだけを送出する。
 	none := true
 	end := time.Now().Add(time.Duration(4) * s.tick)
