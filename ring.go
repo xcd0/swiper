@@ -24,7 +24,7 @@ const (
 	Change_AnalogChangeFrequency
 )
 
-type RingBuffer struct {
+type InputRingBuffer struct {
 	r        *ring.Ring // 受理した入力の履歴。
 	capacity int        // リングバッファのサイズ
 	count    int        // 追加された要素数
@@ -55,9 +55,9 @@ type RingBuffer struct {
 // 	fmt.Printf("要素数: %d\n", rb.Count())
 // }
 
-// NewInputRingBufferは指定されたサイズのリングバッファを初期化します
-func NewInputRingBuffer(size int) *RingBuffer {
-	return &RingBuffer{
+// NewInputInputRingBufferは指定されたサイズのリングバッファを初期化します
+func NewInputInputRingBuffer(size int) *InputRingBuffer {
+	return &InputRingBuffer{
 		r:        ring.New(size),
 		capacity: size,
 		count:    0,
@@ -65,7 +65,10 @@ func NewInputRingBuffer(size int) *RingBuffer {
 }
 
 // AddはリングバッファにInputTypeの値を追加します
-func (rb *RingBuffer) Add(value InputType) {
+func (rb *InputRingBuffer) Add(value InputType) {
+	mutex_rb.Lock()
+	defer mutex_rb.Unlock()
+
 	rb.r.Value = value
 	rb.r = rb.r.Next()
 	if rb.count < rb.capacity {
@@ -74,12 +77,14 @@ func (rb *RingBuffer) Add(value InputType) {
 }
 
 // Countはリングバッファ内の要素数を返します
-func (rb *RingBuffer) Count() int {
+func (rb *InputRingBuffer) Count() int {
 	return rb.count
 }
 
 // Resetはリングバッファ内の要素数を0にリセットします。値はクリアしません。
-func (rb *RingBuffer) Reset() {
+func (rb *InputRingBuffer) Reset() {
+	mutex_rb.Lock()
+	defer mutex_rb.Unlock()
 	rb.count = 0
 }
 
@@ -89,7 +94,7 @@ func (rb *RingBuffer) Reset() {
 //	rb.Do(func(value InputType) {
 //		fmt.Println(value)
 //	})
-func (rb *RingBuffer) Do(f func(InputType)) {
+func (rb *InputRingBuffer) Do(f func(InputType)) {
 	current := rb.r
 	for i := 0; i < rb.count; i++ {
 		if current.Value != nil {
@@ -105,7 +110,7 @@ func (rb *RingBuffer) Do(f func(InputType)) {
 //	rb.DoReverse(func(value InputType) {
 //		fmt.Println(value)
 //	})
-func (rb *RingBuffer) DoReverse(f func(InputType)) {
+func (rb *InputRingBuffer) DoReverse(f func(InputType)) {
 	current := rb.r.Prev()
 	for i := 0; i < rb.count; i++ {
 		if current.Value != nil {

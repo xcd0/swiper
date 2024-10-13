@@ -17,16 +17,20 @@ type Setting struct {
 	Reverse   bool    `json:"paddle-reverse"` // 長短のパドル反転。初期値false。
 	Speed     int     `json:"speed"`          // 速度。初期値20WPM。
 	Frequency int     `json:"frequency"`      // 正弦波周波数。初期値700Hz。
-	Debounce  int     `json:"debounce"`       // デバウンス期間。初期値20s。
+	Debounce  int     `json:"debounce"`       // デバウンス期間。ャタリング防止のための待機時間(ms)。初期値20us。
 	DashRate  float32 `json:"dash-rate"`      // 長音比率。初期値3.0。
+
+	Mode MorseMode // 英文モールス or 和文モールス
+
+	Recorded [4]string // 定型文。
 
 	// 負論理を使用するか。初期値false。
 	EnableNegativeLogic bool `json:"enable-negative-logic"`
 
 	// アナログ出力による制限は出力を試みるか。初期値false。
 	// falseの時、モニター用制限は出力においてPWM変調によって出力する。
-	// trueの時、モニター用出力ピンは GPIO26, GPIO27, GPIO28, GPIO29 の何れかに設定する必要がある。そうでないときPWM出力する。
-	EnableAnalogOutput bool `json:"enable-analog-output-for-monitor"`
+	// trueの時、I2Cで接続されてたDACで出力を試みる。ダメなときPWM出力する。
+	EnableDACOutput bool `json:"enable-dac-output-for-monitor"`
 
 	// 長短パドルを同時に押したときのスクイーズ機能を無効化するか。初期値false。
 	DisableSqueeze bool `json:"disable-squeeze"`
@@ -64,16 +68,18 @@ ASp: %v	| reset  : %2d | I2C SCL: %2d |
 
 func NewSetting() Setting {
 	return Setting{
-		PinSetting:          NewPinAssign(), // GPIOのピン設定。
-		Reverse:             false,          // 長短のパドル反転。初期値false。
-		Speed:               20,             // 速度。初期値20WPM。
-		Frequency:           700,            // 正弦波周波数。初期値440Hz。
-		Debounce:            20,             // デバウンス期間。初期値20us。
-		DashRate:            3.0,            // 長音比率。初期値3.0。
-		EnableNegativeLogic: false,          // 負論理を使用するか。初期値false。
-		EnableAnalogOutput:  false,          // アナログ出力による制限は出力を試みるか。初期値false。
-		DisableSqueeze:      false,          // 長短パドルを同時に押したときのスクイーズ機能を無効化するか。初期値false。
-		DisableAutoSpace:    false,          // 自動で無入力期間を入れる機能を無効化するか。初期値false。
+		PinSetting:          NewPinAssign(),                    // GPIOのピン設定。
+		Reverse:             false,                             // 長短のパドル反転。初期値false。
+		Speed:               20,                                // 速度。初期値20WPM。
+		Frequency:           700,                               // 正弦波周波数。初期値440Hz。
+		Debounce:            20,                                // デバウンス期間。初期値20us。
+		DashRate:            3.0,                               // 長音比率。初期値3.0。
+		Mode:                ModeReadMorse,                     // 英文モールス or 和文モールス
+		Recorded:            [4]string{"CQ CQ CQ", "", "", ""}, // 定型文。
+		EnableNegativeLogic: false,                             // 負論理を使用するか。初期値false。
+		EnableDACOutput:     false,                             // アナログ出力による制限は出力を試みるか。初期値false。
+		DisableSqueeze:      false,                             // 長短パドルを同時に押したときのスクイーズ機能を無効化するか。初期値false。
+		DisableAutoSpace:    false,                             // 自動で無入力期間を入れる機能を無効化するか。初期値false。
 	}
 }
 
@@ -89,12 +95,12 @@ type PinAssign struct {
 	I2CSDA int `json:"i2c-sda"` // I2C SDA LCDやDACなど外部にI2Cの機器を接続する際に使用する。
 	I2CSCL int `json:"i2c-scl"` // I2C SCL LCDやDACなど外部にI2Cの機器を接続する際に使用する。
 
-	Fn1 int `json:"macro-1"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録1を指定する。 / (1秒以上) 設定値変更:スピード変更状態にする。
-	Fn2 int `json:"macro-2"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録2を指定する。 / (1秒以上) 設定値変更:正弦波周波数変更状態にする。
-	Fn3 int `json:"macro-3"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録3を指定する。 / (1秒以上) 設定値変更:デバウンス変更状態にする。
-	Fn4 int `json:"macro-4"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録4を指定する。 / (1秒以上) 設定値変更:長音比率変更状態にする。
-	Fn5 int `json:"macro-5"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を増加する。                / (1秒以上) 入力記録状態にする。長押ししながらFn1～4を短く押して記録先を指定する。その状態でFn5を離して打鍵すると記録される。再度Fn5を押して記録状態を終了する。1分以上記録終了されないとき記録を破棄して過去の記録状態を維持する。
-	Fn6 int `json:"macro-6"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を減少する。                / (1秒以上) 記録出力状態にする。設定ファイルに記述がある文字列を出力する。長押ししながらFn1～4を短く押して定型文を出力する。
+	Fn1 int `json:"function-1"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録1を指定する。 / (1秒以上) 設定値変更:スピード変更状態にする。
+	Fn2 int `json:"function-2"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録2を指定する。 / (1秒以上) 設定値変更:正弦波周波数変更状態にする。
+	Fn3 int `json:"function-3"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録3を指定する。 / (1秒以上) 設定値変更:デバウンス変更状態にする。
+	Fn4 int `json:"function-4"` // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録4を指定する。 / (1秒以上) 設定値変更:長音比率変更状態にする。
+	Fn5 int `json:"function-5"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を増加する。                / (1秒以上) 入力記録状態にする。長押ししながらFn1～4を短く押して記録先を指定する。その状態でFn5を離して打鍵すると記録される。再度Fn5を押して記録状態を終了する。1分以上記録終了されないとき記録を破棄して過去の記録状態を維持する。
+	Fn6 int `json:"function-6"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を減少する。                / (1秒以上) 記録出力状態にする。設定ファイルに記述がある文字列を出力する。長押ししながらFn1～4を短く押して定型文を出力する。
 
 	ExternalInput1Dit  int `json:"external-input-1-dit"`  // 外部機器入力1短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
 	ExternalInput1Dash int `json:"external-input-1-dash"` // 外部機器入力1長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。

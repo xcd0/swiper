@@ -73,11 +73,15 @@ func initialize() {
 		// 設定からGPIOの状態を更新する。
 		// 入出力GPIOポート設定。
 		// 出力ピン設定。
-		pin_out.Configure(machine.PinConfig{Mode: machine.PinOutput})
-		pin_beep_out.Configure(machine.PinConfig{Mode: machine.PinOutput})
+		gpio[s.setting.PinSetting.I2CSDA].Configure(machine.PinConfig{Mode: machine.PinI2C})                   // I2C0
+		gpio[s.setting.PinSetting.I2CSCL].Configure(machine.PinConfig{Mode: machine.PinI2C})                   // I2C0
+		gpio[s.setting.PinSetting.Output].Configure(machine.PinConfig{Mode: machine.PinOutput})                // (矩形波)出力ピン。
+		gpio[s.setting.PinSetting.OutputSine].Configure(machine.PinConfig{Mode: machine.PinPWM})               // モニター用正弦波出力ピン。PWM出力なので外部にLPHが必要。
+		gpio[s.setting.PinSetting.AnalogChangeSpeed].Configure(machine.PinConfig{Mode: machine.PinAnalog})     // スピード変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
+		gpio[s.setting.PinSetting.AnalogChangeFrequency].Configure(machine.PinConfig{Mode: machine.PinAnalog}) // 正弦波周波数変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
 	}
 	{
-		if p := s.setting.PinSetting.OutputSine; !s.setting.UseAnalogOutput {
+		if p := s.setting.PinSetting.OutputSine; !s.setting.EnableDACOutput {
 			if 26 <= p || p <= 29 {
 				log.Printf("main: init_pwm")
 				// アナログ出力設定。

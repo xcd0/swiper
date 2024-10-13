@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // モールス信号の種類
 type WordType int
@@ -91,15 +94,9 @@ var decode_map = DecodeMap{
 	".-..-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "\"", ModeReadJPMorse: "）"}}, // ダブルクオート
 	".--.-.": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "@"}},                        // アットマーク
 
-	"-..-":     {Type: TypeMorse, String: MorseMap{ModeReadMorse: "×"}},                              // 乗算
 	"......":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "^"}},                              // べき乗"^"
-	"-..-.":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "/"}},                              // 斜線"/"
 	"........": {Type: TypeMorse, String: MorseMap{ModeReadMorse: "訂正"}},                             // 訂正 ※「HH」と表現される
-	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信開始"}},                           // 送信開始 ※「BT」と表現される	-...-（=と同じ）
-	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信終了"}},                           // 送信終了 ※「AR」と表現される	.-.-.（+と同じ）
-	"":         {Type: TypeMorse, String: MorseMap{ModeReadMorse: "通信終了"}},                           // 通信の終了 ※「VA」と表現される
-	"...-.-":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "送信要求"}},                           // 送信要求	-.-（Kと同じ）
-	".-...":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "待機待機"}},                           // 待機要求 ※「AS」と表現される
+	"...-.-":   {Type: TypeMorse, String: MorseMap{ModeReadMorse: "通信終了"}},                           // 通信の終了 ※「VA」と表現される
 	"...-.":    {Type: TypeMorse, String: MorseMap{ModeReadMorse: "了解", ModeReadJPMorse: "[訂正・終了]"}}, // ラタ
 
 	// 和文残り
@@ -127,9 +124,9 @@ var decode_map = DecodeMap{
 	"-..---": {Type: TypeMorse, String: MorseMap{ModeReadJPMorse: "[本文]"}}, // ホレ
 }
 
-func DecodeMorse(rb *RingBuffer, mode MorseMode) string {
+func DecodeMorse(rb *InputRingBuffer, mode MorseMode) (string, error) {
 	if rb.Count() == 0 {
-		return ""
+		return "", fmt.Errorf("リングバッファが空です。")
 	}
 	var morseCode strings.Builder
 	rb.Do(func(input InputType) {
@@ -144,14 +141,15 @@ func DecodeMorse(rb *RingBuffer, mode MorseMode) string {
 	if info, ok := decode_map[code]; ok {
 		if info.Type == TypeMorse {
 			if str, ok := info.String[mode]; ok {
-				return str
+				return str, nil
 			}
 			// モードに対応する文字がない場合、別のモードの文字を使用
 			for _, v := range info.String {
-				return v
+				if len(v) != 0 {
+					return v, nil
+				}
 			}
 		}
 	}
-
-	return "*" // 該当なし
+	return "", fmt.Errorf("該当する符号が見つかりませんでした。:%v", code) // 該当なし
 }

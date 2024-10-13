@@ -18,7 +18,6 @@ type PWM interface {
 // PWMの設定。
 func init_pwm(pin int) {
 	var pwm_frequency uint64 = 5e2
-
 	var err error
 	pwm_for_monitor, pwm_ch, err = GetPWM(pin, pwm_frequency)
 	if err != nil {

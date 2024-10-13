@@ -13,17 +13,18 @@ type PushState struct {
 	setting    Setting // 外部から変更可能な設定値。変更時にflashに保存する。起動時に読み込みを試みる。
 	preSetting Setting // 直前の設定状態。設定をflashに書き込むかどうかの判定に使う。できるだけflashに書き込みたくないので。
 
-	tick     time.Duration // 1つの短音の長さ(ms)。SpeedOffsetから計算する。SpeedOffsetが0の時20WPMになるように計算する。
-	freq     int           // モニター用ビープ音の周波数。FreqOffsetから計算する。初期値700Hz。
-	debounce time.Duration // チャタリング防止のための待機時間(ms)。DebounceOffsetから計算する。初期値20ms。
-
-	recorded_input []string
+	tick time.Duration // 1つの短音の長さ(ms)。SpeedOffsetが0の時20WPMになるように計算する。
 }
 
 func ReadGPIO() PinState {
 	var state PinState = 0
 	for i, p := range gpio {
-		if i < 23 && 25 < i || i == s.setting.PinSetting.Output || i == s.setting.PinSetting.AnalogChangeSpeed || i == s.setting.PinSetting.AnalogChangeFrequency {
+		if false || //
+			i < 23 && 25 < i || //
+			i == s.setting.PinSetting.Output || //
+			i == s.setting.PinSetting.AnalogChangeSpeed || //
+			i == s.setting.PinSetting.AnalogChangeFrequency || //
+			false {
 			// 入力ピン以外は無視する。
 		} else {
 			if p.Get() {
@@ -34,8 +35,13 @@ func ReadGPIO() PinState {
 	return state
 }
 
-func clamp(f, l, h float64) float64 {
-	return math.Min(h, math.Max(l, f))
+func AreAllPinsOff(t PinState) bool {
+	// 出力ピンはReadGPIO()で0になるのでこれでよい。
+	return t == 0
+}
+
+func clamp(f, l, h float32) float32 {
+	return float32(math.Min(float64(h), math.Max(float64(l), float64(f))))
 }
 
 func Clamp(f, low, high int) int {

@@ -2,51 +2,50 @@ package main
 
 import (
 	"fmt"
-	"machine"
 	"time"
 )
 
-func OutputSignal(sig_ch chan ePushState, quit_ch chan struct{}) {
+func OutputSignal(sig_ch chan struct{}, quit_ch chan struct{}) {
 	// chに入ってくるまで何もしない。
 	// 入ってきたらchに合わせて処理する。
 	// 処理が終わったらqを通して終了を通知する。
 	for {
 		select {
-		case ps := <-sig_ch: // ePushStateが入ってくる。
+		case _ = <-sig_ch:
 			//log.Printf("OutputSignal: %v", ps)
-			if ps == PUSH_DIT {
-				// 短音
-				if !s.setting.Reverse {
-					fmt.Printf(char_dit)
-					OutputSineWhileTick(s, 1)
-					*buf = append(*buf, PUSH_DIT)
-				} else {
-					// 反転設定がONだったので長音を出力。
-					fmt.Printf(char_dash)
-					*buf = append(*buf, PUSH_DASH)
-					OutputSineWhileTick(s, 3)
-				}
-			} else if ps == PUSH_DASH {
-				// 長音
-				if !s.setting.Reverse {
-					fmt.Printf(char_dash)
-					OutputSineWhileTick(s, 3)
-					*buf = append(*buf, PUSH_DASH)
-				} else {
-					// 反転設定がONだったので短音を出力。
-					fmt.Printf(char_dit)
-					*buf = append(*buf, PUSH_DIT)
-					OutputSineWhileTick(s, 1)
-				}
-			} else {
-				// 設定値変更ピンなど。
-				fmt.Printf("%v", ps)
-				*buf = append(*buf, ps)
-			}
-			if _wait {
-				// メインスレッドの待機を終了する。
-				quit_ch <- struct{}{}
-			}
+			// 	if ps == PUSH_DIT {
+			// 		// 短音
+			// 		if !s.setting.Reverse {
+			// 			fmt.Printf(char_dit)
+			// 			OutputSineWhileTick(s, 1)
+			// 			*buf = append(*buf, PUSH_DIT)
+			// 		} else {
+			// 			// 反転設定がONだったので長音を出力。
+			// 			fmt.Printf(char_dash)
+			// 			*buf = append(*buf, PUSH_DASH)
+			// 			OutputSineWhileTick(s, 3)
+			// 		}
+			// 	} else if ps == PUSH_DASH {
+			// 		// 長音
+			// 		if !s.setting.Reverse {
+			// 			fmt.Printf(char_dash)
+			// 			OutputSineWhileTick(s, 3)
+			// 			*buf = append(*buf, PUSH_DASH)
+			// 		} else {
+			// 			// 反転設定がONだったので短音を出力。
+			// 			fmt.Printf(char_dit)
+			// 			*buf = append(*buf, PUSH_DIT)
+			// 			OutputSineWhileTick(s, 1)
+			// 		}
+			// 	} else {
+			// 		// 設定値変更ピンなど。
+			// 		fmt.Printf("%v", ps)
+			// 		*buf = append(*buf, ps)
+			// 	}
+			// if _wait {
+			// 	// メインスレッドの待機を終了する。
+			// 	quit_ch <- struct{}{}
+			// }
 		default:
 			time.Sleep(time.Millisecond) // 1ms間隔でチェックする。
 		}
@@ -59,11 +58,11 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 		// 引数がおかしい
 		return
 	}
-	mutex.Lock()
-	defer mutex.Unlock()
-	pin_out.High()
+	mutex_sine.Lock()
+	defer mutex_sine.Unlock()
+	gpio[s.setting.PinSetting.Output].High()
+	defer gpio[s.setting.PinSetting.Output].Low()
 	led.High()
-	defer pin_out.Low()
 	defer led.Low()
 	// qに入ってくるまで正弦波を出力する。
 	{
@@ -71,16 +70,9 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 		// どのピンがどのPWMなのかは下記が見やすい。
 		// https://tinygo.org/docs/reference/microcontrollers/pico/#:~:text=YES-,Pins,-Pin
 		// GPIO1でPWMする場合PWM0を指定すればよい。
-		pwm := machine.PWM0
-		pwm.Configure(machine.PWMConfig{Period: uint64(5e2)})
-		var err error
-		if pwm_ch, err = pwm.Channel(pin_beep_out); err != nil {
-			println(err.Error())
-			return
-		}
+
 		pick := 10
 		steps := len(sinTable) / pick // 正弦波のステップ数
-
 		stepDuration := time.Second / time.Duration(sineFrequency) / time.Duration(steps)
 		for {
 			select {
@@ -90,7 +82,7 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 			default:
 				// 1周期分正弦波を出力する。
 				for i := 0; i < len(sinTable); i += pick {
-					pwm.Set(pwm_ch, calced[i])
+					pwm_for_monitor.Set(pwm_ch, calced[i])
 					time.Sleep(stepDuration)
 				}
 			}
@@ -100,7 +92,7 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 
 func OutputSineWhileTick(s *PushState, ticks int) {
 	q := make(chan struct{})
-	go OutputSine(s.freq, q) // 正弦波を出力開始。
+	go OutputSine(s.setting.Frequency, q) // 正弦波を出力開始。
 
 	// 指定tick数の期間待つ。
 	end := time.Now().Add(time.Duration(ticks) * s.tick)
@@ -114,24 +106,24 @@ func OutputSineWhileTick(s *PushState, ticks int) {
 	// 単語の間は4tick空ける必要があるが、このプログラムでは単語の判断は無理なのでユーザーが頑張るものとする。
 }
 
-func OutputSwipeKey(s *PushState, ch chan ePushState, q chan struct{}) {
-	n := s.Now
-	for {
-		// 別スレッドで信号処理。
-		// 具体的にはmainから呼ばれているOutputSignalで処理される。
-		ch <- s.Now
-		if _wait {
-			// 別スレッドの処理が終わるまで待つ。
-			<-q
-		}
-		// 長押しでリピートする。
-		// 出力が終わった時点で再度チェックしてまだ押されていたら再度出力する。
-		// ピン状態が変わっていたら終了する。
-		if s.Update(); n != s.Now {
-			break
-		}
-	}
-}
+//func OutputSwipeKey(s *PushState, ch chan ePushState, q chan struct{}) {
+//	n := s.Now
+//	for {
+//		// 別スレッドで信号処理。
+//		// 具体的にはmainから呼ばれているOutputSignalで処理される。
+//		ch <- s.Now
+//		if _wait {
+//			// 別スレッドの処理が終わるまで待つ。
+//			<-q
+//		}
+//		// 長押しでリピートする。
+//		// 出力が終わった時点で再度チェックしてまだ押されていたら再度出力する。
+//		// ピン状態が変わっていたら終了する。
+//		if s.Update(); n != s.Now {
+//			break
+//		}
+//	}
+//}
 
 func OutputStraightKey(s *PushState) {
 	// もしストレートキー用ピンが押されていたら押されている間出力する。つまりチャタリング防止だけしつつそのまま出力する。
@@ -139,10 +131,10 @@ func OutputStraightKey(s *PushState) {
 	fmt.Printf(char_straight)
 	// 押されている間ONにする。
 	q := make(chan struct{})
-	go OutputSine(s.freq, q)
+	go OutputSine(s.setting.Frequency, q)
 	for {
 		// チェック
-		s.Update()
+		//s.Update()
 		if s.Now != preState {
 			break
 		}
