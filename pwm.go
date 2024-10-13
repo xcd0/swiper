@@ -19,6 +19,7 @@ type PWM interface {
 func init_pwm(pin int) {
 	var pwm_frequency uint64 = 5e2
 	var err error
+	gpio[s.setting.PinSetting.OutputSine].Configure(machine.PinConfig{Mode: machine.PinPWM}) // モニター用正弦波出力ピン。PWM出力なので外部にLPHが必要。
 	pwm_for_monitor, pwm_ch, err = GetPWM(pin, pwm_frequency)
 	if err != nil {
 		handleError(fmt.Errorf("init_pwm: %v", err))

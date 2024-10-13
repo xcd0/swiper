@@ -54,7 +54,7 @@ ASp: %v	| reset  : %2d | I2C SCL: %2d |
 `,
 			s.setting.Reverse, s.setting.PinSetting.InputDit, s.setting.PinSetting.Output, s.setting.PinSetting.Fn1,
 			s.setting.Speed, s.setting.PinSetting.InputDash, s.setting.PinSetting.OutputSine, s.setting.PinSetting.Fn2,
-			s.tick, s.setting.PinSetting.InputAny, s.setting.PinSetting.AnalogChangeSpeed, s.setting.PinSetting.Fn3,
+			s.dit, s.setting.PinSetting.InputAny, s.setting.PinSetting.AnalogChangeSpeed, s.setting.PinSetting.Fn3,
 			s.setting.Frequency, s.setting.PinSetting.DecodeCW, s.setting.PinSetting.AnalogChangeFrequency, s.setting.PinSetting.Fn4,
 			s.setting.Debounce, s.setting.PinSetting.Reverse, s.setting.PinSetting.Fn5,
 			s.setting.DisableSqueeze, s.setting.PinSetting.I2CSDA, s.setting.PinSetting.Fn6,
@@ -102,15 +102,15 @@ type PinAssign struct {
 	Fn5 int `json:"function-5"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を増加する。                / (1秒以上) 入力記録状態にする。長押ししながらFn1～4を短く押して記録先を指定する。その状態でFn5を離して打鍵すると記録される。再度Fn5を押して記録状態を終了する。1分以上記録終了されないとき記録を破棄して過去の記録状態を維持する。
 	Fn6 int `json:"function-6"` // (1秒未満) 基本は何もしない。設定値変更状態で設定値を減少する。                / (1秒以上) 記録出力状態にする。設定ファイルに記述がある文字列を出力する。長押ししながらFn1～4を短く押して定型文を出力する。
 
-	ExternalInput1Dit  int `json:"external-input-1-dit"`  // 外部機器入力1短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput1Dash int `json:"external-input-1-dash"` // 外部機器入力1長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput1Any  int `json:"external-input-1-any"`  // 外部機器入力1任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput2Dit  int `json:"external-input-2-dit"`  // 外部機器入力2短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput2Dash int `json:"external-input-2-dash"` // 外部機器入力2長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput2Any  int `json:"external-input-2-any"`  // 外部機器入力2任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput3Dit  int `json:"external-input-3-dit"`  // 外部機器入力3短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput3Dash int `json:"external-input-3-dash"` // 外部機器入力3長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
-	ExternalInput3Any  int `json:"external-input-3-any"`  // 外部機器入力3任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput1Dit  int `json:"external-input-1-dit"`  // 外部機器入力1短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput1Dash int `json:"external-input-1-dash"` // 外部機器入力1長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput1Any  int `json:"external-input-1-any"`  // 外部機器入力1任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput2Dit  int `json:"external-input-2-dit"`  // 外部機器入力2短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput2Dash int `json:"external-input-2-dash"` // 外部機器入力2長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput2Any  int `json:"external-input-2-any"`  // 外部機器入力2任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput3Dit  int `json:"external-input-3-dit"`  // 外部機器入力3短音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput3Dash int `json:"external-input-3-dash"` // 外部機器入力3長音ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
+	//ExternalInput3Any  int `json:"external-input-3-any"`  // 外部機器入力3任意ピン。初期状態では使用しない。別の電鍵からの入力を読み込んでkeyerとして動作させたいとき使用する。
 
 	Output                int `json:"output"`                  // (矩形波)出力ピン。
 	OutputSine            int `json:"output-sine"`             // モニター用正弦波出力ピン。アナログ出力する場合、26～29の何れかでなければならない。
@@ -128,10 +128,7 @@ func NewPinAssign() PinAssign {
 		Reverse:   4, // 長短音ピン反転ピン。
 		Reset:     5, // 設定リセットピン。
 
-		I2CSDA: 6, // I2C0
-		I2CSCL: 7, // I2C0
-
-		// 8,9
+		// 6,7,8,9
 
 		Fn1: 10, // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録1を指定する。 / (1秒以上) 設定値変更:スピード変更状態にする。
 		Fn2: 11, // (1秒未満) 基本は何もしない。入力記録状態または記録出力状態で記録2を指定する。 / (1秒以上) 設定値変更:正弦波周波数変更状態にする。
@@ -140,13 +137,16 @@ func NewPinAssign() PinAssign {
 		Fn5: 14, // (1秒未満) 基本は何もしない。設定値変更状態で設定値を増加する。                / (1秒以上) 入力記録状態にする。長押ししながらFn1～4を短く押して記録先を指定する。その状態でFn5を離して打鍵すると記録される。再度Fn5を押して記録状態を終了する。1分以上記録終了されないとき記録を破棄して過去の記録状態を維持する。
 		Fn6: 15, // (1秒未満) 基本は何もしない。設定値変更状態で設定値を減少する。                / (1秒以上) 記録出力状態にする。設定ファイルに記述がある文字列を出力する。長押ししながらFn1～4を短く押して定型文を出力する。
 
-		// 16,17,18,19,20,21,22
+		// 16,17,18,19
 
-		// 23,24,25は露出していないことに注意。
+		I2CSDA: 20, // I2C0SDA
+		I2CSCL: 21, // I2C0SCL
 
-		Output:                26, // (矩形波)出力ピン。
-		OutputSine:            27, // モニター用正弦波出力ピン。PWM出力なので外部にLPHが必要。
-		AnalogChangeSpeed:     28, // スピード変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
-		AnalogChangeFrequency: 29, // 正弦波周波数変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
+		// 23,24,25,29は露出していないことに注意。
+
+		Output:                22, // (矩形波)出力ピン。
+		OutputSine:            26, // モニター用正弦波出力ピン。PWM出力なので外部にLPHが必要。
+		AnalogChangeSpeed:     27, // スピード変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
+		AnalogChangeFrequency: 28, // 正弦波周波数変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
 	}
 }

@@ -119,3 +119,13 @@ func (rb *InputRingBuffer) DoReverse(f func(InputType)) {
 		current = current.Prev()
 	}
 }
+
+func (rb *InputRingBuffer) Last() InputType {
+	if rb.count == 0 {
+		return Push_No
+	} else {
+		return rb.r.Prev().Value.(InputType)
+		//Push_InputDit
+		//Push_InputDash
+	}
+}

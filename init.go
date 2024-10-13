@@ -36,6 +36,7 @@ func initialize_gpio() {
 			machine.PinPIO0
 			machine.PinPIO1
 		*/
+		// すべて一旦Pulldown。正論理でも負論理でもよいが統一すること。ここではとりあえず正論理にしている。
 		for c := range gpio {
 			gpio[c].Configure(
 				machine.PinConfig{
@@ -49,7 +50,7 @@ func initialize_gpio() {
 		}
 	}
 	{
-		// 基板上のLEDの設定。
+		// 基板上のLEDの設定。GPIO25がLEDにつながっている。
 		led = machine.LED
 		led.Configure(machine.PinConfig{Mode: machine.PinOutput})
 		led.Low()
@@ -76,16 +77,17 @@ func initialize() {
 		gpio[s.setting.PinSetting.I2CSDA].Configure(machine.PinConfig{Mode: machine.PinI2C})                   // I2C0
 		gpio[s.setting.PinSetting.I2CSCL].Configure(machine.PinConfig{Mode: machine.PinI2C})                   // I2C0
 		gpio[s.setting.PinSetting.Output].Configure(machine.PinConfig{Mode: machine.PinOutput})                // (矩形波)出力ピン。
-		gpio[s.setting.PinSetting.OutputSine].Configure(machine.PinConfig{Mode: machine.PinPWM})               // モニター用正弦波出力ピン。PWM出力なので外部にLPHが必要。
 		gpio[s.setting.PinSetting.AnalogChangeSpeed].Configure(machine.PinConfig{Mode: machine.PinAnalog})     // スピード変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
 		gpio[s.setting.PinSetting.AnalogChangeFrequency].Configure(machine.PinConfig{Mode: machine.PinAnalog}) // 正弦波周波数変更。アナログ入出力ピン26, 27, 28, 29の何れかでなければならない。
 	}
 	{
-		if p := s.setting.PinSetting.OutputSine; !s.setting.EnableDACOutput {
+		if p := s.setting.PinSetting.OutputSine; s.setting.EnableDACOutput {
 			if 26 <= p || p <= 29 {
-				log.Printf("main: init_pwm")
+				log.Printf("main: init_dac")
 				// アナログ出力設定。
 				// 未実装。
+				init_dac := func() {}
+				init_dac()
 			} else {
 				log.Printf("main: Analog output is specified, but no analog output pin is assigned.") // アナログ出力ピンが指定されていない。
 				// PWM設定。

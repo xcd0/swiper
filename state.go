@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"time"
 )
@@ -13,14 +14,17 @@ type PushState struct {
 	setting    Setting // 外部から変更可能な設定値。変更時にflashに保存する。起動時に読み込みを試みる。
 	preSetting Setting // 直前の設定状態。設定をflashに書き込むかどうかの判定に使う。できるだけflashに書き込みたくないので。
 
-	tick time.Duration // 1つの短音の長さ(ms)。SpeedOffsetが0の時20WPMになるように計算する。
+	dit  time.Duration // 1つの短音の長さ。
+	dash time.Duration // 1つの長音の長さ。
 }
 
 func ReadGPIO() PinState {
 	var state PinState = 0
 	for i, p := range gpio {
 		if false || //
-			i < 23 && 25 < i || //
+			i == 23 || i == 24 || i == 25 || i == 29 || //
+			i == s.setting.PinSetting.I2CSDA || //
+			i == s.setting.PinSetting.I2CSCL || //
 			i == s.setting.PinSetting.Output || //
 			i == s.setting.PinSetting.AnalogChangeSpeed || //
 			i == s.setting.PinSetting.AnalogChangeFrequency || //
@@ -33,6 +37,19 @@ func ReadGPIO() PinState {
 		}
 	}
 	return state
+}
+
+func DebugPrintGPIO() string {
+	reverse := func(s string) string {
+		runes := []rune(s)
+		for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+			runes[i], runes[j] = runes[j], runes[i]
+		}
+		return string(runes)
+	}
+	// GPIO0からGPIO29までを左から右に
+	//fmt.Printf("gpio: %v\n", reverse(fmt.Sprintf("%029b", s.Now)))
+	return fmt.Sprintf("gpio: %v\n", reverse(fmt.Sprintf("%029b", s.Now)))
 }
 
 func AreAllPinsOff(t PinState) bool {

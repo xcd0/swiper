@@ -12,6 +12,18 @@ func OutputSignal(sig_ch chan struct{}, quit_ch chan struct{}) {
 	for {
 		select {
 		case _ = <-sig_ch:
+			// リングバッファをチェックして正弦波を出力する。クリアはしない。
+			if rb.Count() > 0 {
+				p := rb.Last()
+				if p == Push_InputDit {
+					OutputSine(time.Duration(s.dit))
+				} else if p == Push_InputDash {
+					OutputSine(time.Duration(s.dash))
+				}
+			}
+
+			quit_ch <- struct{}{}
+
 			//log.Printf("OutputSignal: %v", ps)
 			// 	if ps == PUSH_DIT {
 			// 		// 短音
@@ -53,7 +65,7 @@ func OutputSignal(sig_ch chan struct{}, quit_ch chan struct{}) {
 }
 
 // goroutineとして呼び出すこと。
-func OutputSine(sineFrequency int, q chan struct{}) {
+func outputSine(sineFrequency int, q chan struct{}) {
 	if sineFrequency < 1 {
 		// 引数がおかしい
 		return
@@ -90,21 +102,37 @@ func OutputSine(sineFrequency int, q chan struct{}) {
 	}
 }
 
-func OutputSineWhileTick(s *PushState, ticks int) {
+func OutputSine(duration time.Duration) {
 	q := make(chan struct{})
-	go OutputSine(s.setting.Frequency, q) // 正弦波を出力開始。
+	go outputSine(s.setting.Frequency, q) // 正弦波を出力開始。
 
 	// 指定tick数の期間待つ。
-	end := time.Now().Add(time.Duration(ticks) * s.tick)
+	end := time.Now().Add(duration)
 	for time.Now().Before(end) {
 		time.Sleep(time.Millisecond * time.Duration(1)) // 1msごとにチェック
 	}
 
-	q <- struct{}{}                       // 正弦波出力を終了する。
-	time.Sleep(s.tick * time.Duration(1)) // 文字ごとの間隔 1tick空ける。
+	q <- struct{}{}   // 正弦波出力を終了する。
+	time.Sleep(s.dit) // 文字ごとの間隔 1tick空ける。
 
 	// 単語の間は4tick空ける必要があるが、このプログラムでは単語の判断は無理なのでユーザーが頑張るものとする。
 }
+
+// func OutputSineWhileTick(s *PushState, ticks int) {
+// 	q := make(chan struct{})
+// 	go outputSine(s.setting.Frequency, q) // 正弦波を出力開始。
+//
+// 	// 指定tick数の期間待つ。
+// 	end := time.Now().Add(time.Duration(ticks) * s.tick)
+// 	for time.Now().Before(end) {
+// 		time.Sleep(time.Millisecond * time.Duration(1)) // 1msごとにチェック
+// 	}
+//
+// 	q <- struct{}{}                       // 正弦波出力を終了する。
+// 	time.Sleep(s.tick * time.Duration(1)) // 文字ごとの間隔 1tick空ける。
+//
+// 	// 単語の間は4tick空ける必要があるが、このプログラムでは単語の判断は無理なのでユーザーが頑張るものとする。
+// }
 
 //func OutputSwipeKey(s *PushState, ch chan ePushState, q chan struct{}) {
 //	n := s.Now
@@ -131,7 +159,7 @@ func OutputStraightKey(s *PushState) {
 	fmt.Printf(char_straight)
 	// 押されている間ONにする。
 	q := make(chan struct{})
-	go OutputSine(s.setting.Frequency, q)
+	go outputSine(s.setting.Frequency, q)
 	for {
 		// チェック
 		//s.Update()

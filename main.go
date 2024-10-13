@@ -18,8 +18,8 @@ const (
 var (
 	s               PushState
 	gpio            []machine.Pin
-	led             machine.Pin      // 基板上のLED
-	rb              *InputRingBuffer // 1文字分のモールス信号を保持するリングバッファ。
+	led             machine.Pin                                    // 基板上のLED
+	rb              *InputRingBuffer = NewInputInputRingBuffer(20) // 1文字分のモールス信号を保持するリングバッファ。
 	mutex_rb        sync.Mutex
 	mutex_sine      sync.Mutex
 	pwm_ch          uint8
@@ -29,13 +29,13 @@ var (
 
 func main() {
 
-	sig_ch := make(chan struct{})    // キー入力用channel
-	quit_ch := make(chan struct{})   // 処理完了フラグ用channel
-	rb = NewInputInputRingBuffer(20) // 1文字分のモールス信号を保持するリングバッファ。
+	//go debug()
+	//debug()
 
 	// メインの処理。
-	{
-		go debug()
+	if true {
+		sig_ch := make(chan struct{})    // キー入力用channel
+		quit_ch := make(chan struct{})   // 処理完了フラグ用channel
 		go OutputSignal(sig_ch, quit_ch) // 出力信号作成スレッド        : 信号を生成して出力する。
 		LoopPinCheck(sig_ch, quit_ch)    // キー入力監視(メイン)スレッド: ピン状態を読み取る。
 	}
