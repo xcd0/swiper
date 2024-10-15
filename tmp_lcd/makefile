@@ -49,10 +49,20 @@ on-wsl:
 	# BOOTモードでないとき、COM番号の記述がある。
 	# 9-3    2e8a:000a  USB シリアル デバイス (COM8)                                  Shared
 
+copy-and-monitor-for-wsl:
+	make _copy-for-wsl
+	make _monitor
 
-flash-for-wsl:
+flash-and-monitor-for-wsl:
+	# 以降のコマンドのsudoでパスワードが聞かれないように入力しておく。
+	sudo ls > /dev/null
 	make build
-	
+	make copy-and-monitor-for-wsl
+
+monitor-for-wsl:
+	make _monitor
+
+_copy-for-wsl:
 	# BOOTモードに移行させる。
 	make _bootmode-for-wsl
 	
@@ -62,14 +72,6 @@ flash-for-wsl:
 	# 書き込む
 	-@cp uf2/swiper.uf2 /mnt/e
 
-flash-and-monitor-for-wsl:
-	make flash-for-wsl
-	# モニターを起動する。
-	make _monitor
-
-monitor-for-wsl:
-	make attach-for-wsl
-	make _monitor
 
 # _ がついているものは外から呼ぶこと想定していない。呼んでもよい。
 
@@ -81,22 +83,48 @@ _bootmode-for-wsl:
 	# attach するとusbipd list -uは下記のようになる。
 	# 9-3    2e8a:000a  Unknown device                                                Attached
 	#-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Shared" -e "Attached" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid $$p
-	make attach-for-wsl
+	-@make attach-for-wsl
 	# BOOTモードに移行させるために一旦tinygo flashを実行する。
+	# 2秒でタイムアウトする。
 	# ポートの番号は変わる可能性がある。
 	# 現状wslからはtinygo flashで書き換えできない模様。linux kernelを再ビルドするとできるらしいがうまくいかなかった。
-	-@tinygo flash -target=pico -port /dev/ttyACM`sudo dmesg | grep ttyACM | tail -n1 | sed 's/.*ttyACM//; s/:.*//'` >/dev/null &
+	-@timeout 5 make _flash >/dev/null
 	# AttachしたままBootモードに入っているはずなので detachしてwindows側に返す。
-	-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep "RP2 Boot" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p
+	#-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep "RP2 Boot" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p
+	-@make dettach-for-wsl
 	# 待たないとwindows側が認識しない。5秒はいらないと思われる。
 	sleep 3
 
 _monitor:
-	-@tinygo monitor -target=pico -baudrate=9600
+	# モニターを起動する。
+	make attach-for-wsl
+	-@set -x ; sleep 1
+	make attach-for-wsl
+	-@set -x ; sleep 1
+	-@set -x ; tinygo monitor -target=pico -baudrate=9600
+
+_flash:
+	-@make attach-for-wsl
+	-@set -x ; tinygo flash -target=pico -port /dev/ttyACM`sudo dmesg | grep ttyACM | tail -n1 | sed 's/.*ttyACM//; s/:.*//'`
 
 attach-for-wsl:
-	# 既にAttachedかもしれないが無視する。
-	-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Shared" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid $$p
+	############# attach-for-wsl #############
+	-make _list-grep
+	-set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Shared" | awk '{print $$1}'`; if [ -n "$$p" ]; then "/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid $$p; fi
+	-make _list-grep
 dettach-for-wsl:
-	-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Attached" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p
+	############# detach-for-wsl #############
+	-make _list-grep
+	-set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Attached" | awk '{print $$1}'`; if [ -n "$$p" ]; then "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p; fi
+	-make _list-grep
+list:
+	-@set -x ; "/mnt/c/Program Files/usbipd-win/usbipd.exe" list
+	make _list-grep
+list-u:
+	-@set -x ; "/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u
+	make _list-u-grep
+_list-grep:
+	@"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep -e "Shared" -e "Attached"
+_list-u-grep:
+	@"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Shared" -e "Attached"
 
