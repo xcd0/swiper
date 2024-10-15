@@ -1,10 +1,11 @@
 
 all:
 	go generate
+	@mkdir -p uf2
 	tinygo build -target=pico -o uf2/swiper.uf2
 flash:
 	go generate
-	tinygo flash -target=pico -o uf2/swiper.uf2 main.go
+	tinygo flash -target=pico main.go
 
 install:
 	sudo apt-get install gcc-arm-linux-gnueabihf
