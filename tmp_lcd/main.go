@@ -45,7 +45,8 @@ func init() {
 	I2CSCL := 21                                                    // I2C0SCL
 	gpio[I2CSDA].Configure(machine.PinConfig{Mode: machine.PinI2C}) // I2C0
 	gpio[I2CSCL].Configure(machine.PinConfig{Mode: machine.PinI2C}) // I2C0
-	machine.I2C0.Configure(machine.I2CConfig{Frequency: machine.TWI_FREQ_400KHZ})
+	//machine.I2C0.Configure(machine.I2CConfig{Frequency: machine.TWI_FREQ_400KHZ})
+	machine.I2C0.Configure(machine.I2CConfig{})
 
 	time.Sleep(time.Second)
 }
@@ -55,7 +56,7 @@ func main() {
 	defer main_end()
 
 	// debug_blink()
-	// debug_lcd()
+	debug_lcd()
 
 	for i := 0; i < 50; i++ {
 		if !led.Get() {
@@ -68,6 +69,73 @@ func main() {
 	}
 
 	debug_pwm()
+}
+
+func debug_lcd() {
+	for i := 0; i < 10; i++ {
+		log.Printf("debug_lcd: start ")
+		time.Sleep(time.Second * 1)
+	}
+	defer log.Printf("debug_lcd: start ")
+	for {
+		log.Printf("lcd: line")
+		time.Sleep(time.Second * 1)
+		{
+			display = ssd1306.NewI2C(machine.I2C0)
+			display.Configure(ssd1306.Config{Width: 128, Height: 64, Address: 0x3C, VccState: ssd1306.SWITCHCAPVCC})
+			display.ClearDisplay()
+
+			x := int16(0)
+			y := int16(0)
+			deltaX := int16(1)
+			deltaY := int16(1)
+			for {
+				pixel := display.GetPixel(x, y)
+				c := color.RGBA{255, 255, 255, 255}
+				if pixel {
+					c = color.RGBA{0, 0, 0, 255}
+				}
+				display.SetPixel(x, y, c)
+				display.Display()
+
+				x += deltaX
+				y += deltaY
+
+				if x == 0 || x == 127 {
+					deltaX = -deltaX
+				}
+
+				if y == 0 || y == 63 {
+					deltaY = -deltaY
+				}
+				time.Sleep(1 * time.Millisecond)
+			}
+		}
+
+		log.Printf("lcd: font")
+		time.Sleep(time.Second * 1)
+		{
+
+			// Display
+			dev := ssd1306.NewI2C(machine.I2C0)
+			dev.Configure(ssd1306.Config{Width: 128, Height: 64, Address: ssd1306.Address_128_32, VccState: ssd1306.SWITCHCAPVCC})
+			dev.ClearBuffer()
+			dev.ClearDisplay()
+
+			//font library init
+			display := font.NewDisplay(dev)
+			display.Configure(font.Config{FontType: font.FONT_7x10}) //set font here
+
+			// font.FONT_6x8
+			// font.FONT_7x10
+			// font.FONT_11x18
+			// font.FONT_16x26
+
+			display.YPos = 20                 // set position Y
+			display.XPos = 0                  // set position X
+			display.PrintText("HELLO WORLD!") // print text
+		}
+	}
 }
 
 func debug_pwm() {
@@ -198,70 +266,6 @@ func debug_blink() {
 		}
 		time.Sleep(time.Second)
 		output_info()
-	}
-}
-
-func debug_lcd() {
-	for {
-		log.Printf("lcd: font")
-		time.Sleep(time.Second * 1)
-		{
-
-			// Display
-			dev := ssd1306.NewI2C(machine.I2C0)
-			dev.Configure(ssd1306.Config{Width: 128, Height: 64, Address: ssd1306.Address_128_32, VccState: ssd1306.SWITCHCAPVCC})
-			dev.ClearBuffer()
-			dev.ClearDisplay()
-
-			//font library init
-			display := font.NewDisplay(dev)
-			display.Configure(font.Config{FontType: font.FONT_7x10}) //set font here
-
-			// font.FONT_6x8
-			// font.FONT_7x10
-			// font.FONT_11x18
-			// font.FONT_16x26
-
-			display.YPos = 20                 // set position Y
-			display.XPos = 0                  // set position X
-			display.PrintText("HELLO WORLD!") // print text
-
-		}
-		log.Printf("lcd: line")
-		time.Sleep(time.Second * 1)
-		{
-			display = ssd1306.NewI2C(machine.I2C0)
-			display.Configure(ssd1306.Config{Width: 128, Height: 64, Address: 0x3C, VccState: ssd1306.SWITCHCAPVCC})
-			display.ClearDisplay()
-
-			x := int16(0)
-			y := int16(0)
-			deltaX := int16(1)
-			deltaY := int16(1)
-			for {
-				pixel := display.GetPixel(x, y)
-				c := color.RGBA{255, 255, 255, 255}
-				if pixel {
-					c = color.RGBA{0, 0, 0, 255}
-				}
-				display.SetPixel(x, y, c)
-				display.Display()
-
-				x += deltaX
-				y += deltaY
-
-				if x == 0 || x == 127 {
-					deltaX = -deltaX
-				}
-
-				if y == 0 || y == 63 {
-					deltaY = -deltaY
-				}
-				time.Sleep(1 * time.Millisecond)
-			}
-
-		}
-
 	}
 }
 

@@ -20,9 +20,17 @@ win:
 
 #./lib/mbedtls/include/mbedtls/version.h
 
-on-wsl:
-	#p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep RP2 | awk '{print $$1}'`; \
-	
+install-usbipd-for-wsl:
+	"/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe" -Command "winget install usbipd"
+	make list
+
+bind-for-wsl:
+	# 管理者権限が必要。
+	# COMデバイスがraspberry pi pico 1つだけという前提のコード。
+	p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep "COM" | awk '{print $$1}'`; \
+	"/mnt/c/Program Files/usbipd-win/usbipd.exe" bind -b $$p
+	make list
+
 	# 前提として、windows側で、raspberry pi picoのみをsharedにしておく。
 	# わかりやすい方法は一度BOOTSELを押さずにwindowsにつないで、usbipd listを実行し、raspberry pi picoを探す。
 	# 分からない場合、usbipd list -u を実行して unknownと書いていあるものを探す。多分それ。探したら、1列目の10-3のような文字列がbusid。下記の@を置き換えて実行する。
@@ -32,11 +40,6 @@ on-wsl:
 	# を実行するとwslから見えるようになるはず。sudo dmesgなどを実行すると接続されていれば見える。
 	# usbipd detach --busid @
 	# を実行するとwindows側に戻す。
-	set -x ; \
-		p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u| grep "Shared" | awk '{print $$1}'`; \
-		"/mnt/c/Program Files/usbipd-win/usbipd.exe" bind -b $$p ; \
-		"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid $$p; \
-		"/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p
 
 	# BOOTモードでattachするとdmesgでは
 	# [602532.717276] usb 1-1: New USB device found, idVendor=2e8a, idProduct=0003, bcdDevice= 1.00
@@ -65,13 +68,21 @@ monitor-for-wsl:
 _copy-for-wsl:
 	# BOOTモードに移行させる。
 	make _bootmode-for-wsl
-	
+	make _mount-for-wsl
+	d=`"/mnt/c/WINDOWS/System32/cmd.exe" /c "wmic logicaldisk get deviceid, volumename, description" 2>&1 | iconv -f SJIS -t UTF-8 | grep "RPI-RP2" | awk '{print $3}' | sed 's/://'`; \
+		cp uf2/swiper.uf2 /mnt/$$d
+
+_mount-for-wsl:
 	# windows側のドライブをマウントする。
 	# このドライブレターは各々異なるので書き換える必要がある。
-	-@sudo mount -t drvfs E: /mnt/e
-	# 書き込む
-	-@cp uf2/swiper.uf2 /mnt/e
+	d=`"/mnt/c/WINDOWS/System32/cmd.exe" /c "wmic logicaldisk get deviceid, volumename, description" 2>&1 | iconv -f SJIS -t UTF-8 | grep "RPI-RP2" | awk '{print $$3}' | sed 's/://'` ; echo $$d; \
+	d=`echo $$d | tr [:upper:] [:lower:]`; \
+	sudo mount -t drvfs "$$d:" "/mnt/$$d"; \
+	sleep 1; \
+	sudo chmod -R 777 "/mnt/$$d"; \
+	cp uf2/swiper.uf2 "/mnt/$$d"
 
+	# 書き込む
 
 # _ がついているものは外から呼ぶこと想定していない。呼んでもよい。
 
@@ -89,11 +100,15 @@ _bootmode-for-wsl:
 	# ポートの番号は変わる可能性がある。
 	# 現状wslからはtinygo flashで書き換えできない模様。linux kernelを再ビルドするとできるらしいがうまくいかなかった。
 	-@timeout 5 make _flash >/dev/null
+	sleep 3
 	# AttachしたままBootモードに入っているはずなので detachしてwindows側に返す。
 	#-@set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list | grep "RP2 Boot" | awk '{print $$1}'`; "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p
 	-@make dettach-for-wsl
 	# 待たないとwindows側が認識しない。5秒はいらないと思われる。
-	sleep 3
+	sleep 5
+
+cat:
+	cat makefile | grep "^.*:$$"
 
 _monitor:
 	# モニターを起動する。
@@ -109,14 +124,15 @@ _flash:
 
 attach-for-wsl:
 	############# attach-for-wsl #############
-	-make _list-grep
+	-make list
 	-set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Shared" | awk '{print $$1}'`; if [ -n "$$p" ]; then "/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid $$p; fi
-	-make _list-grep
+	-make list
 dettach-for-wsl:
 	############# detach-for-wsl #############
-	-make _list-grep
+	-@set -x ; "/mnt/c/Program Files/usbipd-win/usbipd.exe" list
 	-set -x ; p=`"/mnt/c/Program Files/usbipd-win/usbipd.exe" list -u | grep -e "Attached" | awk '{print $$1}'`; if [ -n "$$p" ]; then "/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid $$p; fi
-	-make _list-grep
+	-sleep 2
+	-@set -x ; "/mnt/c/Program Files/usbipd-win/usbipd.exe" list
 list:
 	-@set -x ; "/mnt/c/Program Files/usbipd-win/usbipd.exe" list
 	make _list-grep
